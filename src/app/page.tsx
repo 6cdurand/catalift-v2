@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession, logout } from "@/modules/auth";
+import { useSession, logout } from "@/features/auth";
 
 export default function Home() {
   const { user, loading } = useSession();
@@ -47,13 +47,13 @@ export default function Home() {
         </div>
         <div className="flex flex-col gap-3">
           <a
-            href="/auth/login"
+            href="/login"
             className="w-full rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
             Log in
           </a>
           <a
-            href="/auth/signup"
+            href="/signup"
             className="w-full rounded-lg border border-zinc-300 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
           >
             Sign up

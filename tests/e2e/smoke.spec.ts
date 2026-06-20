@@ -14,7 +14,7 @@ test.describe("Smoke tests", () => {
 
     await page.getByRole("link", { name: "Log in" }).click();
 
-    await expect(page).toHaveURL(/\/auth\/login/);
+    await expect(page).toHaveURL(/\/login/);
     await expect(page.getByRole("heading", { name: "Log in" })).toBeVisible();
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
@@ -25,7 +25,7 @@ test.describe("Smoke tests", () => {
 
     await page.getByRole("link", { name: "Sign up" }).click();
 
-    await expect(page).toHaveURL(/\/auth\/signup/);
+    await expect(page).toHaveURL(/\/signup/);
     await expect(page.getByRole("heading", { name: "Sign up" })).toBeVisible();
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();

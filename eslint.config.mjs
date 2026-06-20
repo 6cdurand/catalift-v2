@@ -12,6 +12,18 @@ const eslintConfig = defineConfig([
       ...playwright.configs.recommended.rules,
     },
   },
+  {
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["@/features/*/*"],
+            message: "Features may not import from other features. Use shared lib/components/hooks instead."
+          }
+        ]
+      }]
+    }
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

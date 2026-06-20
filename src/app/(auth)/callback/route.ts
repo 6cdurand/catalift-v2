@@ -18,11 +18,11 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (error) {
-      return NextResponse.redirect(`${origin}/auth/login?error=callback`);
+      return NextResponse.redirect(`${origin}/login?error=callback`);
     }
 
     return response;
   }
 
-  return NextResponse.redirect(`${origin}/auth/login?error=no-code`);
+  return NextResponse.redirect(`${origin}/login?error=no-code`);
 }

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "./use-session";
 
 /**
- * Auth guard hook — redirects to `/auth/login` if not authenticated.
+ * Auth guard hook — redirects to `/login` if not authenticated.
  *
  * Use in client components that require authentication.
  * Returns the same `{ user, loading }` as `useSession`.
@@ -16,7 +16,7 @@ export function useRequireAuth() {
 
   useEffect(() => {
     if (!session.loading && !session.user) {
-      router.replace("/auth/login");
+      router.replace("/login");
     }
   }, [session.loading, session.user, router]);
 
