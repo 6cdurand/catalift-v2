@@ -1,13 +1,14 @@
-import { Home } from "lucide-react";
+"use client";
 
-import { EmptyState } from "@/components/shell/empty-state";
+import { PageHeader } from "@/components/layouts/MainLayout";
 
 export default function HomePage() {
   return (
-    <EmptyState
-      icon={Home}
-      title="Home"
-      description="Your coaching dashboard will live here. Nothing to show yet."
-    />
+    <div>
+      <PageHeader title="Home" />
+      <div className="px-5 py-16 text-center text-gray-500">
+        <p className="text-body">This screen is superseded by /today. It will land in a future lane.</p>
+      </div>
+    </div>
   );
 }
