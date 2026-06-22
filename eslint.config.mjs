@@ -7,6 +7,7 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
+    files: ["tests/**/*.{ts,tsx}"],
     plugins: { playwright },
     rules: {
       ...playwright.configs.recommended.rules,
