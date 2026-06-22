@@ -1,13 +1,14 @@
-import { Users } from "lucide-react";
+"use client";
 
-import { EmptyState } from "@/components/shell/empty-state";
+import { PageHeader } from "@/components/layouts/MainLayout";
 
 export default function ClientsPage() {
   return (
-    <EmptyState
-      icon={Users}
-      title="Clients"
-      description="Your roster and client groups will appear here."
-    />
+    <div>
+      <PageHeader title="Clients" subtitle="Your roster and client groups" />
+      <div className="px-5 py-16 text-center text-gray-500">
+        <p className="text-body">This screen will land in a future lane.</p>
+      </div>
+    </div>
   );
 }

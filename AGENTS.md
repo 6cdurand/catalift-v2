@@ -1,7 +1,24 @@
 # Catalift v2 — Global Agent Rules
 
-> These rules apply to every agent (Cascade or Devin) working in this repo.
+> These rules apply to every worker (any Cascade chat or executor) working in this repo.
 > They are always-on. Feature-specific rules are in `src/features/*/AGENTS.md`.
+
+## How "agents" work here (read this first)
+
+There are **no running bots inside this repo.** An "agent" is just an `AGENTS.md` **rules file** in a
+folder. When you open a chat and work in a folder, you read that folder's `AGENTS.md` and follow it.
+The "agent" = the rules + whoever is doing the work right now.
+
+- This file (`/AGENTS.md`) = global rules, always apply.
+- Each work area has its own rules file (the "domain lanes"):
+  - `src/features/auth/`, `workout-engine/`, `trainer-ops/`, `data-sync/`, `messaging/` → feature lanes
+  - `src/components/` → **design** lane · `tests/` → **qa** lane · `supabase/migrations/` → schema lane
+  - `mobile` lane: added when Capacitor is set up (no native folder yet).
+- One worker works one lane at a time, reading that lane's rules. Nothing runs in the background.
+
+**Who runs the work** (executor model, decided in command-center `plans/v2_executor_model.md`):
+Cascade-paste for the foundation + anything touching auth/RLS/payments/data-sync; OpenClaw overnight
+for verbatim bulk copy; Ollama for batch. Not Devin.
 
 ## Critical invariants
 
