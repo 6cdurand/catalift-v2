@@ -61,6 +61,15 @@ forgot-password and update-password recovery screens on `supabase.auth.resetPass
 **N** — no migration. `public.users.role` already exists (00001); `user_metadata.mode` is set via
 `signUp` options. No `users` columns added (scope lock honored).
 
+## Follow-up fix (hydration-race)
+
+`AuthShell.tsx` originally navigated tabs with `useRouter` + `onValueChange`, making the toggle a
+client-only control (server/client tree divergence → hydration-race flake, brittle hard-nav).
+Replaced with **`<Link>`-backed tabs** (`TabsTrigger asChild` wrapping Next `<Link>`), keeping
+`value={active}` for the sky-500 active styling. Removed `useRouter`/`onValueChange`. Navigation is
+now a real server-rendered anchor (G-18/G-19). No Tailwind/layout changes. Auth + smoke e2e now
+pass even under full parallel workers (previously timed out).
+
 ## Deviations from spec
 
 - **`api/invite.ts` deferred** (the one acceptance item not delivered). No `invitations` table exists
