@@ -3,15 +3,24 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 /**
- * Guard against the v1 auth anti-patterns the spec says to DROP (G-02/G-03).
- * If any of these reappear in app/feature source, the build fails.
- *
- * - `hashPassword`        — custom password hashing (Supabase Auth only)
- * - `apex-users`          — unscoped localStorage credential cache
- * - `localStorage.clear`  — evicts the sb-* auth token (INC-003 outage)
- * - `@/lib/store`         — v1 auth/trainer Zustand god-store
+ * Guard against v1 anti-patterns the v2 port must DROP (G-01/G-02/G-03/G-16).
+ * If any reappear in app/feature source (outside __tests__), the build fails.
  */
-const FORBIDDEN = ["hashPassword", "apex-users", "localStorage.clear", "@/lib/store"];
+const FORBIDDEN = [
+  // auth credential footguns (G-02 — Supabase Auth only)
+  "hashPassword",
+  "password_hash",
+  // unscoped localStorage caches / token eviction (G-03, INC-003)
+  "apex-",            // v1 localStorage key prefix: apex-users, apex-workouts, ...
+  "localStorage.clear",
+  // v1 Zustand god-stores (G-16 — separate store per resource)
+  "@/lib/store",
+  // v1 identity divergence (G-01 — use auth.uid()/users.id directly)
+  "canonical_user_id",
+  // v1 god-file user fetch / writes
+  "fetchAllUsersFromSupabase",
+  "updateUserInSupabase",
+];
 
 const SRC = resolve(__dirname, "../../../");
 const CODE_EXT = /\.(ts|tsx)$/;

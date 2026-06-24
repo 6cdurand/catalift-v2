@@ -70,6 +70,35 @@ Replaced with **`<Link>`-backed tabs** (`TabsTrigger asChild` wrapping Next `<Li
 now a real server-rendered anchor (G-18/G-19). No Tailwind/layout changes. Auth + smoke e2e now
 pass even under full parallel workers (previously timed out).
 
+## Follow-up fix 2 — widened v1-footgun guard + sweep
+
+### Guard widened
+
+`no-legacy-auth.test.ts` `FORBIDDEN` array expanded from 4 patterns to the full v1-footgun set:
+
+| Pattern | Category | Guardrail |
+|---|---|---|
+| `hashPassword` | auth credential footgun | G-02 |
+| `password_hash` | auth credential footgun | G-02 |
+| `apex-` | unscoped localStorage key prefix (apex-users, apex-workouts, …) | G-03, INC-003 |
+| `localStorage.clear` | auth token eviction | G-03, INC-003 |
+| `@/lib/store` | v1 Zustand god-store | G-16 |
+| `canonical_user_id` | v1 identity divergence | G-01 |
+| `fetchAllUsersFromSupabase` | v1 god-file user fetch (PII disclosure, BUG-N3) | G-01 |
+| `updateUserInSupabase` | v1 god-file user write | G-01 |
+
+Scan logic, `__tests__` exclusion, and file-collection code unchanged.
+
+### Offender enumeration
+
+`npm run test:unit` → **29 passed (6 files)**, including `no-legacy-auth.test.ts` (9 patterns, 0 offenders).
+
+**Zero offenders found in app/feature source.** The spec anticipated `apex-users` in `src/lib/exercises.ts` (leaked by Wave 2 PR #6), but the Wave 2 pure-logic files have not yet merged to `main` — `wave3-auth` branches from `main` (08b684c) and does not contain those 24 ported files. The widened guard will catch them when Wave 2 merges into a branch that includes this guard.
+
+### Identity/auth patterns
+
+No `canonical_user_id`, `fetchAllUsersFromSupabase`, or `updateUserInSupabase` matches found — nothing to escalate to Christo.
+
 ## Deviations from spec
 
 - **`api/invite.ts` deferred** (the one acceptance item not delivered). No `invitations` table exists
