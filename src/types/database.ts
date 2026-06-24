@@ -142,6 +142,60 @@ export type Database = {
           },
         ]
       }
+      invitations: {
+        Row: {
+          accepted_at: string | null
+          accepted_user: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          role: string
+          status: string
+          token: string
+          trainer_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_user?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          role?: string
+          status?: string
+          token: string
+          trainer_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_user?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          role?: string
+          status?: string
+          token?: string
+          trainer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitations_accepted_user_fkey"
+            columns: ["accepted_user"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitations_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -285,9 +339,13 @@ export type Database = {
           date_of_birth: string | null
           email: string
           full_name: string | null
+          gender: string | null
+          height_cm: number | null
           id: string
           role: string
           updated_at: string
+          username: string | null
+          weight_kg: number | null
         }
         Insert: {
           avatar_url?: string | null
@@ -295,9 +353,13 @@ export type Database = {
           date_of_birth?: string | null
           email: string
           full_name?: string | null
+          gender?: string | null
+          height_cm?: number | null
           id: string
           role?: string
           updated_at?: string
+          username?: string | null
+          weight_kg?: number | null
         }
         Update: {
           avatar_url?: string | null
@@ -305,9 +367,13 @@ export type Database = {
           date_of_birth?: string | null
           email?: string
           full_name?: string | null
+          gender?: string | null
+          height_cm?: number | null
           id?: string
           role?: string
           updated_at?: string
+          username?: string | null
+          weight_kg?: number | null
         }
         Relationships: []
       }
@@ -360,10 +426,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_invitation: { Args: { p_token: string }; Returns: string }
       are_connected: { Args: { _a: string; _b: string }; Returns: boolean }
       is_conversation_member: {
         Args: { _conv: string; _uid: string }
         Returns: boolean
+      }
+      verify_invitation: {
+        Args: { p_token: string }
+        Returns: {
+          email: string
+          trainer_name: string
+          valid: boolean
+        }[]
       }
     }
     Enums: {

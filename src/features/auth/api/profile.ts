@@ -5,20 +5,41 @@ import type { UserRole } from "../types";
 
 const MAX_RETRIES = 3;
 
+/** Postgres unique-violation SQLSTATE. */
+const UNIQUE_VIOLATION = "23505";
+
+/**
+ * Thrown when the chosen `username` collides with the `users.username UNIQUE`
+ * constraint. Surfaced to the signup seam so it can show "username taken"
+ * instead of a generic failure. Not retried (a retry would never succeed).
+ */
+export class UsernameTakenError extends Error {
+  constructor() {
+    super("That username is already taken.");
+    this.name = "UsernameTakenError";
+  }
+}
+
+export type Gender = "male" | "female" | "other" | "prefer_not_to_say";
+
 /**
  * Fields the signup wizard / onboarding can persist to `public.users`.
  *
- * SCOPE (auth-ui, Option B): only columns that EXIST on `public.users` today
- * — `full_name`, `role`, `date_of_birth`. The wizard also collects
- * username / gender / height / weight, but those columns do not exist yet,
- * so they are intentionally NOT written here. They land with the separate
- * Class-B migration spec. See `// TODO(auth-schema-followon)` at call sites.
+ * `username` / `gender` / `height_cm` / `weight_kg` land via migration 00006
+ * (auth-schema-followon). All optional; only provided keys are written.
  */
 export interface ProfileUpdate {
   fullName?: string;
   role?: UserRole;
   /** ISO `YYYY-MM-DD`. Empty string is treated as "no value" (NULL). */
   dateOfBirth?: string;
+  /** Unique across `public.users`. Collision -> `UsernameTakenError`. */
+  username?: string;
+  gender?: Gender;
+  /** Centimetres. Non-positive / NaN is treated as "no value" (NULL). */
+  heightCm?: number;
+  /** Kilograms. Non-positive / NaN is treated as "no value" (NULL). */
+  weightKg?: number;
 }
 
 /**
@@ -32,11 +53,23 @@ export async function upsertProfile(
   userId: string,
   update: ProfileUpdate,
 ): Promise<void> {
-  const row: Record<string, string | null> = {};
+  const row: Record<string, string | number | null> = {};
   if (update.fullName !== undefined) row.full_name = update.fullName || null;
   if (update.role !== undefined) row.role = update.role;
   if (update.dateOfBirth !== undefined)
     row.date_of_birth = update.dateOfBirth || null;
+  if (update.username !== undefined) row.username = update.username || null;
+  if (update.gender !== undefined) row.gender = update.gender || null;
+  if (update.heightCm !== undefined)
+    row.height_cm =
+      Number.isFinite(update.heightCm) && update.heightCm > 0
+        ? update.heightCm
+        : null;
+  if (update.weightKg !== undefined)
+    row.weight_kg =
+      Number.isFinite(update.weightKg) && update.weightKg > 0
+        ? update.weightKg
+        : null;
 
   if (Object.keys(row).length === 0) return;
 
@@ -48,6 +81,17 @@ export async function upsertProfile(
       if (error) throw error;
       return; // success
     } catch (err) {
+      // A unique-violation on `username` will never succeed on retry — surface
+      // it immediately so the UI can prompt for a different username.
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        "code" in err &&
+        (err as { code?: string }).code === UNIQUE_VIOLATION &&
+        row.username !== undefined
+      ) {
+        throw new UsernameTakenError();
+      }
       if (attempt === MAX_RETRIES) {
         console.error(
           `upsertProfile failed after ${MAX_RETRIES} attempts:`,

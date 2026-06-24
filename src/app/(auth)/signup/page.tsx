@@ -16,7 +16,7 @@ import {
   Check,
 } from "lucide-react";
 import { getBrowserClient } from "@/lib/supabase";
-import { AuthShell, upsertProfile } from "@/features/auth";
+import { AuthShell, upsertProfile, UsernameTakenError } from "@/features/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,9 +47,9 @@ type Gender = "male" | "female" | "other";
  * client-side password hashing) → `getBrowserClient().auth.signUp()` + a
  * scoped `public.users` write (G-01: id = auth.uid()).
  *
- * SCOPE (Option B): username / gender / height / weight columns do not exist
- * on `public.users` yet, so the wizard RENDERS them (visual parity) but only
- * full_name / role / date_of_birth are persisted. See `// TODO(auth-schema-followon)`.
+ * Persists full_name / role / date_of_birth / username / gender / height_cm /
+ * weight_kg (migration 00006). A duplicate `username` surfaces a friendly
+ * error (UsernameTakenError) and sends the user back to fix it.
  */
 export default function SignupPage() {
   const router = useRouter();
@@ -134,17 +134,27 @@ export default function SignupPage() {
     // session yet; the row is created by the `handle_new_user` trigger and the
     // user lands here again post-confirm.
     //
-    // TODO(auth-schema-followon): persist username / gender / height / weight /
-    // healthConnections once those columns + tables exist. They are collected
-    // above for visual parity but intentionally NOT written this wave.
+    // healthConnections is still not persisted (healthData flag off, no column).
     if (data.session && data.user) {
       try {
         await upsertProfile(data.user.id, {
           fullName: displayName || username,
           role,
           dateOfBirth,
+          username,
+          gender,
+          heightCm: height ? Number(height) : undefined,
+          weightKg: weight ? Number(weight) : undefined,
         });
-      } catch {
+      } catch (err) {
+        if (err instanceof UsernameTakenError) {
+          // The auth account exists, but the username collided. Send them back
+          // to the credentials step to pick another instead of stranding them.
+          setIsLoading(false);
+          setStep("credentials");
+          toast.error("That username is taken — please choose another.");
+          return;
+        }
         // Already logged + retried in upsertProfile; non-blocking for nav.
       }
       toast.success("Account created successfully!");
@@ -290,7 +300,6 @@ export default function SignupPage() {
               </div>
               <div className="space-y-2">
                 <Label className="text-gray-300">Gender</Label>
-                {/* TODO(auth-schema-followon): no `gender` column yet — collected for parity, not persisted. */}
                 <Select value={gender} onValueChange={(v) => setGender(v as Gender)}>
                   <SelectTrigger className="bg-gray-50 border-gray-200 text-gray-900">
                     <SelectValue />
@@ -318,7 +327,6 @@ export default function SignupPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="height" className="text-gray-300">Height (cm)</Label>
-                  {/* TODO(auth-schema-followon): no `height` column yet — not persisted. */}
                   <div className="relative">
                     <Ruler className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                     <Input
@@ -333,7 +341,6 @@ export default function SignupPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="weight" className="text-gray-300">Weight (kg)</Label>
-                  {/* TODO(auth-schema-followon): no `weight` column yet — not persisted. */}
                   <div className="relative">
                     <Scale className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                     <Input
@@ -404,7 +411,7 @@ export default function SignupPage() {
 
           {step === "connections" && (
             <div className="space-y-3">
-              {/* TODO(auth-schema-followon): healthConnections not persisted (healthData flag off, no column). */}
+              {/* healthConnections not persisted yet (healthData flag off, no column). */}
               <p className="text-xs text-gray-500 mb-2">
                 Connect now or skip — you can always change this in Settings later.
               </p>

@@ -3,7 +3,12 @@ export { useRequireAuth } from "./hooks/use-require-auth";
 export { logout } from "./api/logout";
 export { readUserMode, syncUserModeToProfile } from "./api/user-mode";
 export { roleFromProfileRow } from "./api/resolve-role";
-export { upsertProfile, type ProfileUpdate } from "./api/profile";
+export {
+  upsertProfile,
+  UsernameTakenError,
+  type ProfileUpdate,
+  type Gender,
+} from "./api/profile";
 export {
   verifyInviteToken,
   acceptInvite,

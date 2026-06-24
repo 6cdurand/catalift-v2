@@ -74,14 +74,59 @@ test.describe("Auth — branded UI + flows", () => {
     ).toBeVisible();
   });
 
-  // G-25: invite acceptance is feature-flagged OFF — a token shows the
-  // "coming soon" state and NEVER opens a password-setup form.
-  test("invite with a token shows the disabled state, no setup form", async ({
+  // Stub the security-definer `verify_invitation` RPC (no live backend).
+  async function mockVerifyInvitation(
+    page: Page,
+    rows: Array<{ email: string; trainer_name: string; valid: boolean }>,
+  ) {
+    await page.route(`${SUPABASE_URL}/rest/v1/rpc/verify_invitation`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(rows),
+      });
+    });
+  }
+
+  // G-25: a server-verified VALID token opens the invited flow (shows the
+  // invited email + the "Sign Up & Accept" CTA).
+  test("invite with a server-verified valid token shows the invited state", async ({
     page,
   }) => {
-    await page.goto("/invite?token=sometoken123");
+    await mockVerifyInvitation(page, [
+      { email: "client@example.com", trainer_name: "Coach Sam", valid: true },
+    ]);
+    await page.goto("/invite?token=goodtoken123");
 
-    await expect(page.getByText("Invitations Coming Soon")).toBeVisible();
+    await expect(page.getByText("You're Invited!")).toBeVisible();
+    await expect(page.getByText("client@example.com")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign Up & Accept" })).toBeVisible();
+  });
+
+  // G-25: an invalid/expired/used token (valid=false) must NEVER open a setup
+  // or accept flow — it shows the invalid state only.
+  test("invite with an invalid token shows the invalid state, no accept CTA", async ({
+    page,
+  }) => {
+    await mockVerifyInvitation(page, [
+      { email: "client@example.com", trainer_name: "Coach Sam", valid: false },
+    ]);
+    await page.goto("/invite?token=expiredtoken");
+
+    await expect(page.getByText("Invalid Invitation")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign Up & Accept" })).toHaveCount(0);
+    await expect(page.getByText("Set Up Your Account")).toHaveCount(0);
+  });
+
+  // G-25 Sev-0 gate: a bare `?email=` with NO token never opens setup/accept —
+  // the verify RPC is never even called without a token.
+  test("invite with a bare ?email= and no token shows invalid, no setup", async ({
+    page,
+  }) => {
+    await page.goto("/invite?email=victim@example.com");
+
+    await expect(page.getByText("Invalid Invitation")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign Up & Accept" })).toHaveCount(0);
     await expect(page.getByText("Set Up Your Account")).toHaveCount(0);
   });
 
