@@ -100,13 +100,13 @@ export function computeProgramProgress(
 // effect (brief §F3) — no nightly cron. Without a dedupe key the same
 // notification would re-fire on every page load within the 3-day window.
 //
-// Key shape: apex-endcycle-notified-<programId>-<YYYY-MM-DD>
+// Key shape: catalift-endcycle-notified-<programId>-<YYYY-MM-DD>
 // The date portion is the program's *current* end date (UTC ISO date),
 // which means: if the trainer extends the program (end date moves) the
 // key changes and the notification may fire once more for the new end —
 // desired per brief §1 ("Program extended/edited").
 
-const ENDCYCLE_KEY_PREFIX = 'apex-endcycle-notified-';
+const ENDCYCLE_KEY_PREFIX = 'catalift-endcycle-notified-';
 
 export function endCycleKey(programId: string, endDate: Date | string): string {
   const iso =

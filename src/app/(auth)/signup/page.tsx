@@ -3,10 +3,20 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { getBrowserClient } from "@/lib/supabase";
+import {
+  AuthShell,
+  syncUserModeToProfile,
+  type UserRole,
+} from "@/features/auth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<UserRole>("client");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -18,105 +28,155 @@ export default function SignupPage() {
     setLoading(true);
 
     const supabase = getBrowserClient();
-    const { error } = await supabase.auth.signUp({ email, password });
-
-    setLoading(false);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        // `mode` is the app's source of truth for role
+        // (see components/layouts/_shell-stubs.ts).
+        data: { mode: role },
+        emailRedirectTo:
+          typeof window !== "undefined"
+            ? `${window.location.origin}/callback`
+            : undefined,
+      },
+    });
 
     if (error) {
+      setLoading(false);
       setError(error.message);
       return;
     }
 
+    // If email confirmation is disabled, signUp returns a live session — mirror
+    // the chosen role into the profile row now (best-effort). Otherwise the
+    // mirror happens on first login.
+    if (data.session && data.user) {
+      try {
+        await syncUserModeToProfile(data.user.id, role);
+      } catch {
+        // Already logged + retried; non-blocking.
+      }
+      router.push("/");
+      router.refresh();
+      return;
+    }
+
+    setLoading(false);
     setSuccess(true);
   }
 
   if (success) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm space-y-4 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">
+      <AuthShell active="register">
+        <div className="space-y-4 text-center">
+          <h1 className="text-xl font-semibold tracking-tight text-gray-900">
             Check your email
           </h1>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-gray-500">
             We&apos;ve sent you a confirmation link. Click it to verify your
             account.
           </p>
-          <button
+          <Button
+            variant="link"
             onClick={() => router.push("/login")}
-            className="font-medium text-zinc-900 underline dark:text-zinc-100"
+            className="w-full"
           >
             Back to login
-          </button>
+          </Button>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Sign up</h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Create your Catalift account
-          </p>
+    <AuthShell active="register">
+      <div className="space-y-2 text-center">
+        <h1 className="text-xl font-semibold tracking-tight text-gray-900">
+          Create your account
+        </h1>
+        <p className="text-sm text-gray-500">Ignite your rise with Catalift</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+        <div className="space-y-1.5">
+          <Label>I am a</Label>
+          <div
+            role="radiogroup"
+            aria-label="Account role"
+            className="grid grid-cols-2 gap-2"
+          >
+            <button
+              type="button"
+              role="radio"
+              aria-checked={role === "client"}
+              onClick={() => setRole("client")}
+              className={cn(
+                "rounded-[10px] border px-4 py-2.5 text-sm font-medium transition-all",
+                role === "client"
+                  ? "border-sky-500 bg-sky-50 text-sky-700 shadow-sm"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300",
+              )}
+            >
+              Client
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={role === "trainer"}
+              onClick={() => setRole("trainer")}
+              className={cn(
+                "rounded-[10px] border px-4 py-2.5 text-sm font-medium transition-all",
+                role === "trainer"
+                  ? "border-rose-500 bg-rose-50 text-rose-700 shadow-sm"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300",
+              )}
+            >
+              Trainer
+            </button>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:border-zinc-700 dark:focus:border-zinc-100 dark:focus:ring-zinc-100"
-              placeholder="you@example.com"
-            />
-          </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+          />
+        </div>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900 dark:border-zinc-700 dark:focus:border-zinc-100 dark:focus:ring-zinc-100"
-              placeholder="••••••••"
-            />
-          </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            required
+            minLength={8}
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+          />
+        </div>
 
-          {error && (
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          )}
+        {error && <p className="text-sm text-red-600">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-          >
-            {loading ? "Creating account…" : "Sign up"}
-          </button>
-        </form>
+        <Button type="submit" disabled={loading} className="w-full">
+          {loading ? "Creating account…" : "Sign up"}
+        </Button>
+      </form>
 
-        <p className="text-center text-sm text-zinc-500">
-          Already have an account?{" "}
-          <a
-            href="/login"
-            className="font-medium text-zinc-900 underline dark:text-zinc-100"
-          >
-            Log in
-          </a>
-        </p>
-      </div>
-    </div>
+      <p className="mt-6 text-center text-sm text-gray-500">
+        Already have an account?{" "}
+        <a href="/login" className="font-medium text-sky-600 hover:text-sky-500">
+          Log in
+        </a>
+      </p>
+    </AuthShell>
   );
 }

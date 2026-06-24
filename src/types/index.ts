@@ -578,7 +578,7 @@ export interface ClientGroup {
   memberIds: string[];  // Array of client IDs
   color?: string;  // For visual identification
   pricePerSession?: number;  // Group class price per person
-  // v18-D4: recurring class times. Persists via zustand persist (apex-trainer-store).
+  // v18-D4: recurring class times. Persists via zustand persist (catalift-trainer-store).
   // Conditional schema: not yet synced to Supabase; see migration
   // supabase/migrations/20260531_groups_recurring_schedule.sql for future server-side sync.
   schedule?: GroupScheduleSlot[];
