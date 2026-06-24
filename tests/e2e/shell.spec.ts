@@ -51,6 +51,17 @@ async function mockAuth(page: Page) {
     await route.continue();
   });
 
+  // G-20: the app shell now resolves role from `public.users.role` (a REST
+  // read), not user_metadata. Mock that read so the shell renders
+  // deterministically without a live DB.
+  await page.route(`${SUPABASE_URL}/rest/v1/users*`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ role: "client" }),
+    });
+  });
+
   await page.context().addCookies([
     {
       name: COOKIE_NAME,

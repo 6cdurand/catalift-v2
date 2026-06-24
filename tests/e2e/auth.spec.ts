@@ -3,13 +3,13 @@ import { test, expect, type Page } from "@playwright/test";
 const SUPABASE_REF = "igagmdkdzjkxrwnyvgqk";
 const SUPABASE_URL = `https://${SUPABASE_REF}.supabase.co`;
 
-/**
- * Mocks the Supabase auth recovery endpoint so the forgot-password flow is
- * deterministic without a live backend.
- */
-async function mockRecover(page: Page) {
+/** Deterministic stubs for the Supabase auth endpoints (no live backend). */
+async function mockAuthEndpoints(page: Page) {
   await page.route(`${SUPABASE_URL}/auth/v1/**`, async (route) => {
     const url = route.request().url();
+    const method = route.request().method();
+
+    // Password recovery → always 200 (enumeration-safe).
     if (url.includes("/recover")) {
       await route.fulfill({
         status: 200,
@@ -18,60 +18,79 @@ async function mockRecover(page: Page) {
       });
       return;
     }
+
+    // Password sign-in → 400 invalid credentials.
+    if (url.includes("/token") && method === "POST") {
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "invalid_grant",
+          error_description: "Invalid login credentials",
+        }),
+      });
+      return;
+    }
+
     await route.continue();
   });
 }
 
 test.describe("Auth — branded UI + flows", () => {
-  test("login tab → register tab navigates between routes", async ({
+  test("login with bad credentials shows an error toast, no crash", async ({
     page,
   }) => {
+    await mockAuthEndpoints(page);
     await page.goto("/login");
 
-    await expect(page.getByRole("tab", { name: "Register" })).toBeVisible();
-    await page.getByRole("tab", { name: "Register" }).click();
+    await page.getByLabel("Email").fill("nobody@example.com");
+    await page.getByLabel("Password").fill("wrongpassword");
+    await page.getByRole("button", { name: "Sign In" }).click();
 
-    await expect(page).toHaveURL(/\/signup$/);
-    await expect(
-      page.getByRole("heading", { name: "Create your account" }),
-    ).toBeVisible();
-
-    await page.getByRole("tab", { name: "Login" }).click();
+    await expect(page.getByText("Invalid email or password")).toBeVisible();
+    // Still on the login page — no white-screen / crash.
     await expect(page).toHaveURL(/\/login$/);
-    await expect(
-      page.getByRole("heading", { name: "Welcome back" }),
-    ).toBeVisible();
+    await expect(page.getByText("Welcome Back")).toBeVisible();
   });
 
-  test("role toggle selects trainer (aria-checked reflects choice)", async ({
+  test("forgot-password modal shows a neutral confirmation (no enumeration)", async ({
     page,
   }) => {
-    await page.goto("/signup");
+    await mockAuthEndpoints(page);
+    await page.goto("/login");
 
-    const client = page.getByRole("radio", { name: "Client" });
-    const trainer = page.getByRole("radio", { name: "Trainer" });
+    await page.getByRole("button", { name: "Forgot password?" }).click();
 
-    await expect(client).toHaveAttribute("aria-checked", "true");
-    await expect(trainer).toHaveAttribute("aria-checked", "false");
+    // Modal opened (scope to it to avoid the login form behind it).
+    const dialog = page.getByRole("dialog", { name: "Reset your password" });
+    await expect(dialog).toBeVisible();
 
-    await trainer.click();
+    await dialog.getByPlaceholder("your@email.com").fill("someone@example.com");
+    await dialog.getByRole("button", { name: "Send Recovery Link" }).click();
 
-    await expect(trainer).toHaveAttribute("aria-checked", "true");
-    await expect(client).toHaveAttribute("aria-checked", "false");
+    await expect(page.getByTestId("forgot-confirmation")).toBeVisible();
+    await expect(
+      page.getByText("If an account exists for that email"),
+    ).toBeVisible();
   });
 
-  test("forgot-password shows a neutral confirmation", async ({ page }) => {
-    await mockRecover(page);
-    await page.goto("/reset-password");
+  // G-25: invite acceptance is feature-flagged OFF — a token shows the
+  // "coming soon" state and NEVER opens a password-setup form.
+  test("invite with a token shows the disabled state, no setup form", async ({
+    page,
+  }) => {
+    await page.goto("/invite?token=sometoken123");
 
-    await page.getByLabel("Email").fill("someone@example.com");
-    await page.getByRole("button", { name: "Send reset link" }).click();
+    await expect(page.getByText("Invitations Coming Soon")).toBeVisible();
+    await expect(page.getByText("Set Up Your Account")).toHaveCount(0);
+  });
 
-    await expect(
-      page.getByRole("heading", { name: "Check your email" }),
-    ).toBeVisible();
-    await expect(
-      page.getByText("If an account exists for that address"),
-    ).toBeVisible();
+  // G-25: a bare `?email=` param must NOT open any setup flow on /login.
+  test("login with ?email= does not open a setup flow", async ({ page }) => {
+    await page.goto("/login?email=victim@example.com");
+
+    await expect(page.getByText("Welcome Back")).toBeVisible();
+    await expect(page.getByText("Set Up Your Account")).toHaveCount(0);
+    await expect(page.getByText("Create Password")).toHaveCount(0);
   });
 });
