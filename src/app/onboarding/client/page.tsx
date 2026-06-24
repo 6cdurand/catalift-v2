@@ -28,9 +28,8 @@ type Gender = "male" | "female" | "other";
  * grep-guard-forbidden). The only write is `upsertProfile` (G-01: id =
  * auth.uid(), G-11 await+retry).
  *
- * SCOPE (Option B): gender / height / weight columns don't exist yet — the
- * fields RENDER for parity but only `full_name` is persisted. See
- * `// TODO(auth-schema-followon)`.
+ * Persists full_name / gender / height_cm / weight_kg via `upsertProfile`
+ * (migration 00006), each scoped to `id = auth.uid()` (G-01, G-11 await+retry).
  */
 export default function ClientOnboardingPage() {
   const router = useRouter();
@@ -56,10 +55,13 @@ export default function ClientOnboardingPage() {
     if (!user) return;
     setSaving(true);
 
-    // TODO(auth-schema-followon): persist gender / height / weight once those
-    // columns exist. Collected for parity; only full_name is written this wave.
     try {
-      await upsertProfile(user.id, { fullName: displayName.trim() || undefined });
+      await upsertProfile(user.id, {
+        fullName: displayName.trim() || undefined,
+        gender,
+        heightCm: height ? Number(height) : undefined,
+        weightKg: weight ? Number(weight) : undefined,
+      });
       toast.success("Profile set up! Welcome to Catalift!");
       router.push("/today");
     } catch {
@@ -96,7 +98,6 @@ export default function ClientOnboardingPage() {
 
             <div className="space-y-2">
               <Label className="text-gray-700">Gender</Label>
-              {/* TODO(auth-schema-followon): no `gender` column yet — not persisted. */}
               <Select value={gender} onValueChange={(v) => setGender(v as Gender)}>
                 <SelectTrigger className="bg-gray-50 border-gray-200 text-gray-900">
                   <SelectValue />
@@ -112,7 +113,6 @@ export default function ClientOnboardingPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label className="text-gray-700">Height (cm)</Label>
-                {/* TODO(auth-schema-followon): no `height` column yet — not persisted. */}
                 <Input
                   type="number"
                   value={height}
@@ -123,7 +123,6 @@ export default function ClientOnboardingPage() {
               </div>
               <div className="space-y-2">
                 <Label className="text-gray-700">Weight (kg)</Label>
-                {/* TODO(auth-schema-followon): no `weight` column yet — not persisted. */}
                 <Input
                   type="number"
                   value={weight}

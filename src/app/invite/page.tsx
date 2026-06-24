@@ -44,7 +44,7 @@ function InvitePageContent() {
 
   const [status, setStatus] = useState<Status>("loading");
   const [inviteData, setInviteData] = useState<{
-    trainerId?: string;
+    trainerName?: string | null;
     email?: string;
   } | null>(null);
 
@@ -59,10 +59,11 @@ function InvitePageContent() {
         const result = await verifyInviteToken(token);
         if (cancelled) return;
         if (result.status === "valid") {
-          setInviteData({ trainerId: result.trainerId, email: result.email });
+          setInviteData({
+            trainerName: result.trainerName,
+            email: result.email,
+          });
           setStatus("valid");
-        } else if (result.status === "expired") {
-          setStatus("expired");
         } else if (result.status === "disabled") {
           setStatus("disabled");
         } else {
