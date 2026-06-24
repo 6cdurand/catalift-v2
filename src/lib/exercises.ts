@@ -2418,15 +2418,11 @@ export function getSetVolume(
   return effectiveWeight * reps;
 }
 
-// Look up a user's bodyweight from localStorage users array
+// TODO(v2): bodyweight will come from a user-profile Supabase table or healthData
+// feature flag. Until then, return undefined so callers fall back to 1x bodyweight.
 export function getUserBodyweight(userId: string): number | undefined {
-  try {
-    const storedUsers = JSON.parse(localStorage.getItem('apex-users') || '[]');
-    const user = storedUsers.find((u: any) => u.id === userId);
-    return user?.weight || undefined;
-  } catch {
-    return undefined;
-  }
+  void userId;
+  return undefined;
 }
 
 // Count how many times each exercise has been completed across workout history

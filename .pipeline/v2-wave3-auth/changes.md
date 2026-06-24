@@ -89,11 +89,18 @@ pass even under full parallel workers (previously timed out).
 
 Scan logic, `__tests__` exclusion, and file-collection code unchanged.
 
-### Offender enumeration
+### Offender enumeration (post-merge with origin/main)
 
-`npm run test:unit` → **29 passed (6 files)**, including `no-legacy-auth.test.ts` (9 patterns, 0 offenders).
+After merging `origin/main` (abbee70) into `wave3-auth`, the Wave 2 `src/lib/*` files entered the
+ tree. `npm run test:unit` flagged **3 offenders** for `apex-`:
 
-**Zero offenders found in app/feature source.** The spec anticipated `apex-users` in `src/lib/exercises.ts` (leaked by Wave 2 PR #6), but the Wave 2 pure-logic files have not yet merged to `main` — `wave3-auth` branches from `main` (08b684c) and does not contain those 24 ported files. The widened guard will catch them when Wave 2 merges into a branch that includes this guard.
+| File | Line | Pattern | Fix |
+|---|---|---|---|
+| `src/lib/exercises.ts` | 2424 | `localStorage.getItem('apex-users')` in `getUserBodyweight` | Stubbed to return `undefined` — no v2 bodyweight source yet (TODO comment) |
+| `src/lib/programProgress.ts` | 103,109 | `apex-endcycle-notified-` localStorage key prefix | Renamed to `catalift-endcycle-notified-` |
+| `src/types/index.ts` | 581 | Comment referencing `apex-trainer-store` | Updated comment to `catalift-trainer-store` |
+
+No other forbidden patterns flagged. After fixes: **83 passed (8 files)**, guard clean.
 
 ### Identity/auth patterns
 
@@ -118,13 +125,13 @@ $ npx tsc --noEmit         → clean (exit 0)
 $ npm run lint             → clean (exit 0)
 
 # unit
-$ npm run test:unit        → Test Files 6 passed (6) · Tests 25 passed (25)
+$ npm run test:unit        → Test Files 8 passed (8) · Tests 83 passed (83)
 
 # e2e (run as CI does: single worker)
 $ npx playwright test --workers=1   → 7 passed
 
 # grep proof — forbidden v1 patterns in app/feature source (non-test):
-$ grep -rn -E "hashPassword|apex-users|localStorage\.clear|@/lib/store" src --include=*.ts --include=*.tsx | grep -v __tests__
+$ grep -rn -E "hashPassword|password_hash|apex-|localStorage\.clear|@/lib/store|canonical_user_id|fetchAllUsersFromSupabase|updateUserInSupabase" src --include=*.ts --include=*.tsx | grep -v __tests__
   → (no matches)
 
 # new symbols mounted:
