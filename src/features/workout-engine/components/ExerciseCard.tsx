@@ -1,0 +1,93 @@
+// ExerciseCard.tsx \u2014 exercise header + sets list + Add Set button (w2a, ported from v1 active/page.tsx:3822-3841).
+
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Plus, Trash2 } from 'lucide-react';
+import { SetRow } from './SetRow';
+import type { ExerciseEntry, LoggedSet } from '../types';
+
+interface ExerciseCardProps {
+  entry: ExerciseEntry;
+  onAddSet: (entryId: string) => void;
+  onUpdateSet: (entryId: string, setId: string, updates: Partial<LoggedSet>) => void;
+  onCompleteSet: (entryId: string, setId: string) => void;
+  onUncompleteSet: (entryId: string, setId: string) => void;
+  onRemoveSet: (entryId: string, setId: string) => void;
+  onRemoveExercise: (entryId: string) => void;
+}
+
+export function ExerciseCard({
+  entry,
+  onAddSet,
+  onUpdateSet,
+  onCompleteSet,
+  onUncompleteSet,
+  onRemoveSet,
+  onRemoveExercise,
+}: ExerciseCardProps) {
+  const completedCount = entry.sets.filter((s) => s.completed).length;
+  const totalCount = entry.sets.length;
+
+  return (
+    <div className="bg-white border-b border-gray-100">
+      {/* Header */}
+      <div className="px-4 py-3">
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <p className="font-medium text-gray-900">{entry.exerciseName}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="bg-gray-100 text-gray-600">
+              {completedCount}/{totalCount}
+            </Badge>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => onRemoveExercise(entry.id)}
+              className="h-8 w-8 text-gray-500 hover:text-red-400"
+              title="Remove exercise"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Sets header */}
+      <div className="grid grid-cols-12 gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-gray-50 text-[10px] sm:text-xs text-gray-500 font-medium">
+        <div className="col-span-1">SET</div>
+        <div className="col-span-3">PREVIOUS</div>
+        <div className="col-span-3 text-center">KG</div>
+        <div className="col-span-3 text-center">REPS</div>
+        <div className="col-span-2" />
+      </div>
+
+      {/* Set rows */}
+      <div className="divide-y divide-gray-100">
+        {entry.sets.map((set) => (
+          <SetRow
+            key={set.id}
+            set={set}
+            entryId={entry.id}
+            onUpdateSet={onUpdateSet}
+            onCompleteSet={onCompleteSet}
+            onUncompleteSet={onUncompleteSet}
+            onRemoveSet={onRemoveSet}
+          />
+        ))}
+      </div>
+
+      {/* Add Set button */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => onAddSet(entry.id)}
+        className="w-full text-xs text-gray-500 hover:text-sky-500 h-8"
+      >
+        <Plus className="w-3 h-3 mr-1" /> Add Set
+      </Button>
+    </div>
+  );
+}

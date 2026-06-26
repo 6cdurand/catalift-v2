@@ -13,8 +13,8 @@ function makeWorkout(): LoggedWorkout {
       exerciseId: newId(),
       exerciseName: "Deadlift",
       sets: [
-        { id: newId(), weight: 140, reps: 5, completed: true },
-        { id: newId(), weight: 140, reps: 5, completed: true },
+        { id: newId(), weight: 140, reps: 5, completed: true, setNumber: 1 },
+        { id: newId(), weight: 140, reps: 5, completed: true, setNumber: 2 },
       ],
     },
   };

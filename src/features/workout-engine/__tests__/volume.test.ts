@@ -19,7 +19,7 @@ function set(
   completed = true,
   extra: Partial<LoggedSet> = {},
 ): LoggedSet {
-  return { id: newId(), weight, reps, completed, ...extra };
+  return { id: newId(), weight, reps, completed, setNumber: 1, ...extra };
 }
 
 function entry(sets: LoggedSet[]): ExerciseEntry {

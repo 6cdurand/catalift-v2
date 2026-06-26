@@ -22,7 +22,7 @@ describe("ids — G-10 uuid guard", () => {
         id: newId(),
         exerciseId: newId(),
         exerciseName: "Squat",
-        sets: [{ id: "local-set-1", weight: 100, reps: 5, completed: true }],
+        sets: [{ id: "local-set-1", weight: 100, reps: 5, completed: true, setNumber: 1 }],
       },
     };
     expect(() =>
@@ -40,7 +40,7 @@ describe("ids — G-10 uuid guard", () => {
           id: newId(),
           exerciseId: newId(),
           exerciseName: "Burpee",
-          sets: [{ id: newId(), weight: null, reps: 10, completed: true }],
+          sets: [{ id: newId(), weight: null, reps: 10, completed: true, setNumber: 1 }],
         },
       ],
     };
