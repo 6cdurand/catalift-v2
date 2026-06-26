@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus } from 'lucide-react';
+import { exerciseLibrary } from '@/lib/exercises';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
 import { useActiveWorkoutStore } from '@/features/workout-engine/stores/active-workout-store';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
@@ -24,12 +25,23 @@ function AddExerciseModal({
   onClose: () => void;
 }) {
   const [search, setSearch] = useState('');
+  const [filteredExercises, setFilteredExercises] = useState(exerciseLibrary);
 
-  const handleAdd = () => {
-    if (search.trim()) {
-      onAdd({ exerciseId: 'stub-exercise-id', exerciseName: search.trim() });
-      onClose();
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    const lower = value.toLowerCase().trim();
+    if (!lower) {
+      setFilteredExercises(exerciseLibrary);
+    } else {
+      setFilteredExercises(
+        exerciseLibrary.filter((ex) => ex.name.toLowerCase().includes(lower))
+      );
     }
+  };
+
+  const handleSelect = (ex: { id: string; name: string }) => {
+    onAdd({ exerciseId: ex.id, exerciseName: ex.name });
+    onClose();
   };
 
   return (
@@ -37,20 +49,33 @@ function AddExerciseModal({
       <div className="bg-white rounded-lg p-6 w-full max-w-md">
         <h3 className="text-lg font-medium mb-4">Add Exercise</h3>
         <Input
-          placeholder="Exercise name (e.g. Bench Press)"
+          placeholder="Search exercises (e.g. Bench Press)"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleAdd();
-          }}
+          onChange={(e) => handleSearch(e.target.value)}
           autoFocus
         />
+        <div className="mt-4 max-h-64 overflow-y-auto border border-gray-200 rounded">
+          {filteredExercises.slice(0, 20).map((ex) => (
+            <button
+              key={ex.id}
+              onClick={() => handleSelect({ id: ex.id, name: ex.name })}
+              className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-0"
+            >
+              <div className="font-medium text-sm">{ex.name}</div>
+              {ex.equipment && (
+                <div className="text-xs text-gray-500">{ex.equipment}</div>
+              )}
+            </button>
+          ))}
+          {filteredExercises.length === 0 && (
+            <div className="px-3 py-4 text-sm text-gray-500 text-center">
+              No exercises found
+            </div>
+          )}
+        </div>
         <div className="flex gap-2 mt-4">
           <Button variant="outline" onClick={onClose} className="flex-1">
             Cancel
-          </Button>
-          <Button onClick={handleAdd} className="flex-1 bg-sky-500 text-white">
-            Add
           </Button>
         </div>
       </div>
@@ -72,6 +97,9 @@ export default function ActiveWorkoutPage() {
     hasHydrated,
     isFinishing,
     workoutTimerSeconds,
+    timerRunning,
+    tickTimer,
+    startWorkout,
     addExercise,
     removeExercise,
     addSet,
@@ -85,6 +113,7 @@ export default function ActiveWorkoutPage() {
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [workoutStartAttempted, setWorkoutStartAttempted] = useState(false);
 
   // Stub auth check (TODO: wire to real useSession hook)
   useEffect(() => {
@@ -96,6 +125,14 @@ export default function ActiveWorkoutPage() {
     setLoading(false);
   }, []);
 
+  // Start a workout on mount if none exists (so e2e can drive the flow)
+  useEffect(() => {
+    if (user && hasHydrated && !activeWorkout && !isFinishing && !workoutStartAttempted) {
+      startWorkout({ userId: user.id, name: 'Workout' });
+      setWorkoutStartAttempted(true);
+    }
+  }, [user, hasHydrated, activeWorkout, isFinishing, workoutStartAttempted, startWorkout]);
+
   const redirect = shouldRedirectFromActiveWorkout({
     isAuthenticated: !!user,
     activeWorkout,
@@ -106,11 +143,21 @@ export default function ActiveWorkoutPage() {
   });
 
   useEffect(() => {
-    if (!loading) {
+    // Only redirect after we've attempted to start a workout (avoids race where redirect fires before startWorkout)
+    if (!loading && workoutStartAttempted) {
       if (redirect === 'auth') router.replace('/auth/login');
       if (redirect === 'workout') router.replace('/workout');
     }
-  }, [redirect, router, loading]);
+  }, [redirect, router, loading, workoutStartAttempted]);
+
+  // F4: Tick the workout timer (1-second interval while running)
+  useEffect(() => {
+    if (!timerRunning) return;
+    const interval = setInterval(() => {
+      tickTimer();
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timerRunning, tickTimer]);
 
   if (loading || redirect !== null) return null;
 

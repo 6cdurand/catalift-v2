@@ -4,11 +4,13 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import type { StateStorage } from 'zustand/middleware';
 import type { LoggedWorkout, WorkoutBlock, LoggedSet } from '../types';
 import { newId } from '../lib/ids';
 import { computeTotalVolume } from '../lib/volume';
 import { toRow } from '../lib/serialize';
 import { persist as persistWorkout } from '../api/persist';
+import { getIdbItem, setIdbItem, removeIdbItem } from '@/lib/storage';
 
 interface ActiveWorkoutState {
   activeWorkout: LoggedWorkout | null;
@@ -252,8 +254,24 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
       setHasHydrated: (v) => set({ hasHydrated: v }),
     }),
     {
+      // G-03: IndexedDB key (TODO: user-scoped via userScopedKey when auth is wired)
       name: 'catalift-active-workout',
-      storage: createJSONStorage(() => localStorage), // TODO: IndexedDB wrapper (lib/storage.ts) for auth token protection (G-03)
+      storage: createJSONStorage<ActiveWorkoutState>(() => {
+        // G-03: IndexedDB for bulky workout payload (auth tokens stay in localStorage)
+        const idbStorage: StateStorage = {
+          getItem: async (key: string) => {
+            const value = await getIdbItem<string>(key);
+            return value ?? null;
+          },
+          setItem: async (key: string, value: string) => {
+            await setIdbItem(key, value);
+          },
+          removeItem: async (key: string) => {
+            await removeIdbItem(key);
+          },
+        };
+        return idbStorage;
+      }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },
