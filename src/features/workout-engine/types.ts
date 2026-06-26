@@ -17,6 +17,10 @@ export interface LoggedSet {
   // circuit positioning — present ONLY when this set belongs to a circuit station:
   roundIndex?: number; // 0-based round
   stationIndex?: number; // 0-based station within the circuit
+  // w2a additions — tap-to-fill UX:
+  previousWeight?: number | null; // drives placeholder in set row
+  previousReps?: number | null; // drives placeholder in set row
+  setNumber: number; // 1-based display index
 }
 
 export interface ExerciseEntry {

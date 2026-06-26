@@ -24,6 +24,7 @@ function station(
       completed: true,
       roundIndex: round,
       stationIndex,
+      setNumber: round + 1,
       ...build(round),
     })),
   };
