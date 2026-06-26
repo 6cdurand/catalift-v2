@@ -3,7 +3,7 @@
 // Active workout page \u2014 the straight-set execution screen (w2a, ported from v1 active/page.tsx).
 // Auth guard, timer, exercise list, finish button. w2a: straight sets only; superset/circuit/cardio/rest-timer are later waves.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -113,7 +113,8 @@ export default function ActiveWorkoutPage() {
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [workoutStartAttempted, setWorkoutStartAttempted] = useState(false);
+  const [readyToRedirect, setReadyToRedirect] = useState(false);
+  const workoutStartAttempted = useRef(false);
 
   // Stub auth check (TODO: wire to real useSession hook)
   useEffect(() => {
@@ -121,17 +122,20 @@ export default function ActiveWorkoutPage() {
     const stubUser = { id: 'stub-user-id' };
     // eslint-disable-next-line react-hooks/set-state-in-effect -- stub auth for w2a; real useSession is Class B
     setUser(stubUser);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- stub auth for w2a
     setLoading(false);
   }, []);
 
   // Start a workout on mount if none exists (so e2e can drive the flow)
   useEffect(() => {
-    if (user && hasHydrated && !activeWorkout && !isFinishing && !workoutStartAttempted) {
+    if (user && hasHydrated && !activeWorkout && !isFinishing && !workoutStartAttempted.current) {
       startWorkout({ userId: user.id, name: 'Workout' });
-      setWorkoutStartAttempted(true);
+      workoutStartAttempted.current = true;
+      setReadyToRedirect(true);
+    } else if (user && hasHydrated && !workoutStartAttempted.current) {
+      // If we already have a workout (or are finishing), we're ready to redirect
+      setReadyToRedirect(true);
     }
-  }, [user, hasHydrated, activeWorkout, isFinishing, workoutStartAttempted, startWorkout]);
+  }, [user, hasHydrated, activeWorkout, isFinishing, startWorkout]);
 
   const redirect = shouldRedirectFromActiveWorkout({
     isAuthenticated: !!user,
@@ -144,11 +148,11 @@ export default function ActiveWorkoutPage() {
 
   useEffect(() => {
     // Only redirect after we've attempted to start a workout (avoids race where redirect fires before startWorkout)
-    if (!loading && workoutStartAttempted) {
+    if (!loading && readyToRedirect) {
       if (redirect === 'auth') router.replace('/auth/login');
       if (redirect === 'workout') router.replace('/workout');
     }
-  }, [redirect, router, loading, workoutStartAttempted]);
+  }, [redirect, router, loading, readyToRedirect]);
 
   // F4: Tick the workout timer (1-second interval while running)
   useEffect(() => {
