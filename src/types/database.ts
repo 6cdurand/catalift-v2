@@ -58,6 +58,63 @@ export type Database = {
           },
         ]
       }
+      client_programs: {
+        Row: {
+          client_id: string
+          created_at: string
+          end_date: string | null
+          id: string
+          name: string
+          next_workout_index: number
+          program_data: Json
+          start_date: string | null
+          status: string
+          trainer_id: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          name: string
+          next_workout_index?: number
+          program_data?: Json
+          start_date?: string | null
+          status?: string
+          trainer_id: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          name?: string
+          next_workout_index?: number
+          program_data?: Json
+          start_date?: string | null
+          status?: string
+          trainer_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_programs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_programs_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           created_at: string
@@ -227,6 +284,71 @@ export type Database = {
           {
             foreignKeyName: "personal_bests_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_programs: {
+        Row: {
+          auto_repeat: boolean
+          created_at: string
+          days: Json
+          days_per_week: number
+          description: string | null
+          duration_weeks: number
+          goals: string[]
+          id: string
+          last_assigned_at: string | null
+          name: string
+          phase: string | null
+          schedule_mode: string | null
+          source_template_id: string | null
+          times_assigned: number
+          trainer_id: string
+          updated_at: string
+        }
+        Insert: {
+          auto_repeat?: boolean
+          created_at?: string
+          days?: Json
+          days_per_week?: number
+          description?: string | null
+          duration_weeks?: number
+          goals?: string[]
+          id?: string
+          last_assigned_at?: string | null
+          name: string
+          phase?: string | null
+          schedule_mode?: string | null
+          source_template_id?: string | null
+          times_assigned?: number
+          trainer_id: string
+          updated_at?: string
+        }
+        Update: {
+          auto_repeat?: boolean
+          created_at?: string
+          days?: Json
+          days_per_week?: number
+          description?: string | null
+          duration_weeks?: number
+          goals?: string[]
+          id?: string
+          last_assigned_at?: string | null
+          name?: string
+          phase?: string | null
+          schedule_mode?: string | null
+          source_template_id?: string | null
+          times_assigned?: number
+          trainer_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_programs_trainer_id_fkey"
+            columns: ["trainer_id"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
