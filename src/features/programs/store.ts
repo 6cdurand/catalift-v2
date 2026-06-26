@@ -2,8 +2,8 @@
 //
 // Separate store per resource (G-16) — program state lives here, NOT crammed into
 // a god trainerStore as in v1. Plain Zustand `create` with NO persist middleware:
-// program data is never written to the browser's local-storage cache (NO
-// apex-program-library key). The DB is the source of truth for persistence; this
+// program data is never written to the browser's local-storage cache (no legacy
+// v1 program-library localStorage key). The DB is the source of truth for persistence; this
 // store is the source of truth for UI state.
 //
 // Hydration MERGES by id (G-09) via data-sync's `mergeById`: an empty or partial
