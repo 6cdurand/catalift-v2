@@ -54,6 +54,23 @@ POST  /rest/v1/workouts  → 400 {"code":"22P02","message":"invalid input syntax
 
 **Conclusion:** the authenticated `public.*` data layer is testable again. ISSUE-1 (BUG-013) resolved. Remaining known items unchanged and NOT re-filed: **ISSUE-2 / BUG-014** (`/workout/active` `stub-user-id` → workout save 400, fix in flight) and **ISSUE-4 / BUG-012** (`(app)` routes lack server-side auth gate). Everything below this section is the original (pre-fix) report, retained for history.
 
+### Trainer role-routing re-check — ISSUE-3 also resolved
+
+Fresh trainer signup with the role toggle **ON**: `qa+trainer1782687@catalift.test` · `234ba33e-4d6a-4c75-8b57-84ab1873d2e7`.
+
+```
+POST  /auth/v1/signup                              → 200
+PATCH /rest/v1/users?id=eq.234ba33e-…  (role write) → 204
+GET   /rest/v1/users?select=role&id=eq.234ba33e-…  → 200 {"role":"trainer"}
+```
+
+- **Role value:** `"trainer"` — persisted and read back correctly (was `403`/never-persisted before BUG-013 fix).
+- **Landing route:** `/today`, rendered in the **trainer shell** — bottom nav is **Today · Feed · Clients · Builder · Profile** (vs the client shell's Today · Feed · Community · Program · Profile) and the theme is crimson (client is blue). So the role-aware shell **is built**; it was simply unreachable while BUG-013 blocked the role read.
+
+![reverify trainer shell](screenshots/08-reverify-trainer-shell.png)
+
+ISSUE-3 (trainer landed in client shell) was a downstream symptom of BUG-013 and is now resolved. (`/clients` and `/builder` pages themselves are still "future lane" placeholders — feature work, not a regression.)
+
 ---
 
 ## TL;DR
