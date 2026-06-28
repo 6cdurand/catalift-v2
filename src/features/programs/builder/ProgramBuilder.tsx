@@ -10,7 +10,6 @@ import { BuildDaysStep } from './steps/BuildDaysStep';
 import { ScheduleStep } from './steps/ScheduleStep';
 import { DAY_LABEL_PRESETS } from '../constants';
 import type { ProgramDay } from '../types';
-import { v4 as uuidv4 } from 'uuid';
 
 type BuilderStep = 'setup' | 'days' | 'schedule';
 
@@ -32,7 +31,7 @@ export function ProgramBuilder({ isTrainerMode }: ProgramBuilderProps) {
     // Create empty ProgramDay[] from daysPerWeek using DAY_LABEL_PRESETS
     const labels = DAY_LABEL_PRESETS[daysPerWeek] || [];
     const days: ProgramDay[] = labels.map((label) => ({
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       label,
       blocks: [],
     }));
