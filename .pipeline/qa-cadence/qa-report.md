@@ -17,6 +17,45 @@
 
 ---
 
+## ⭐ Re-verification (2026-06-26, later) — BUG-013 fix confirmed
+
+After fix #16 (`9750549`, "re-grant EXECUTE on are_connected/is_conversation_member to authenticated") merged to `main`, I re-ran the authed data layer against live staging. **ISSUE-1 / BUG-013 (`42501 permission denied for function are_connected`) is FIXED on the live DB.**
+
+New re-verify account: `qa+client1782685@catalift.test` · `600a4468-74b3-43d6-9ac5-0682205a3637` (client).
+
+| Check | Before (BUG-013) | Now | Verdict |
+|---|---|---|---|
+| Signup `POST /auth/v1/signup` | 200 | `200` | ok |
+| **users WRITE** `PATCH /rest/v1/users` (profile) | `403` 42501 | **`204`** | ✅ fixed |
+| **users READ** `GET /rest/v1/users?select=role` (uses `are_connected` policy) | `403` 42501 | **`200 {"role":"client"}`** | ✅ fixed |
+| Login `POST /auth/v1/token?grant_type=password` | n/a | `200` | ok |
+| post-login users READ `GET …select=role` | `403` 42501 | **`200 {"role":"client"}`** | ✅ fixed |
+| **workouts READ** `GET /rest/v1/workouts` (uses `are_connected` policy) | (blocked) | **`200 []`** | ✅ fixed |
+| workouts WRITE `POST /rest/v1/workouts` | n/a | **`400 22P02 invalid input syntax for type uuid: "stub-user-id"`** | ⚠️ **BUG-014** (known, fix in flight) — NOT a 42501 |
+
+```
+# signup → users write+read now 2xx (was 403/42501)
+PATCH /rest/v1/users?id=eq.600a4468-…  → 204
+GET   /rest/v1/users?select=role&id=eq.600a4468-…  → 200 {"role":"client"}
+
+# login → 2xx
+POST  /auth/v1/token?grant_type=password  → 200
+GET   /rest/v1/users?select=role&id=eq.600a4468-…  → 200 {"role":"client"}
+
+# direct authenticated workouts read (are_connected SELECT policy) → 2xx
+GET   /rest/v1/workouts?select=id,user_id,created_at&limit=5  → 200 []
+
+# workout save still fails — but with 400 (BUG-014 stub-user-id), NOT 42501
+POST  /rest/v1/workouts  → 400 {"code":"22P02","message":"invalid input syntax for type uuid: \"stub-user-id\""}
+```
+
+![reverify client shell](screenshots/06-reverify-client-shell.png)
+![reverify login shell](screenshots/07-reverify-login-shell.png)
+
+**Conclusion:** the authenticated `public.*` data layer is testable again. ISSUE-1 (BUG-013) resolved. Remaining known items unchanged and NOT re-filed: **ISSUE-2 / BUG-014** (`/workout/active` `stub-user-id` → workout save 400, fix in flight) and **ISSUE-4 / BUG-012** (`(app)` routes lack server-side auth gate). Everything below this section is the original (pre-fix) report, retained for history.
+
+---
+
 ## TL;DR
 
 Part A is **blocked at the data layer**. Signup (auth) works, but **every authenticated read/write to `public.*` returns `403 permission denied for function are_connected`** — a Class B schema bug introduced by migration `00005`. On top of that the workout screen writes a **hardcoded `stub-user-id`** instead of the real session user (Class A). Net result: roles don't persist, workouts don't save, and program-assignment / payment UIs aren't built yet. Part B parity (auth / workout-engine / data-sync) is otherwise **clean** — v2 correctly drops the known v1 footguns.
