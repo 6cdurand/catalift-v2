@@ -1,14 +1,19 @@
 // e2e test: straight-set core loop (w2a)
 
 import { test, expect } from '@playwright/test';
+import { mockAuthSession } from './auth-helpers';
 
 test.describe('Straight-set execution', () => {
   test.beforeEach(async ({ page }) => {
-    // Stub: assumes logged in (real auth is Class B)
+    // Mock auth session (deterministic — same pattern as shell.spec.ts)
+    await mockAuthSession(page);
     await page.goto('/workout/active');
   });
 
   test('add exercise → log set → finish → workout saves', async ({ page }) => {
+    // Wait for page to be ready (workout should auto-start)
+    await page.waitForTimeout(2000); // Give time for workout to auto-start and hydration
+
     // Add an exercise
     await page.click('text=Add Exercise');
     await page.fill('input[placeholder*="Search exercises"]', 'Bench');

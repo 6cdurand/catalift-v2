@@ -13,6 +13,8 @@ import { exerciseLibrary } from '@/lib/exercises';
 import { useActiveWorkoutStore } from '@/features/workout-engine/stores/active-workout-store';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
 import { ExerciseCard } from '@/features/workout-engine/components/ExerciseCard';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import { useSession } from '@/features/auth';
 import { shouldRedirectFromActiveWorkout } from './redirect-guard';
 
 // Minimal exercise picker stub (w2a: enough to pick an exercise and call addExercise)
@@ -111,19 +113,11 @@ export default function ActiveWorkoutPage() {
   } = useActiveWorkoutStore();
 
   const [showAddExercise, setShowAddExercise] = useState(false);
-  const [user, setUser] = useState<{ id: string } | null>(null);
-  const [loading, setLoading] = useState(true);
   const [readyToRedirect, setReadyToRedirect] = useState(false);
   const workoutStartAttempted = useRef(false);
 
-  // Stub auth check (TODO: wire to real useSession hook)
-  useEffect(() => {
-    // For w2a: assume logged in (real auth is in auth/** which is Class B)
-    const stubUser = { id: 'stub-user-id' };
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- stub auth for w2a; real useSession is Class B
-    setUser(stubUser);
-    setLoading(false);
-  }, []);
+  // Real session (BUG-014 fix)
+  const { user, loading } = useSession();
 
   // Start a workout on mount if none exists (so e2e can drive the flow)
   useEffect(() => {
