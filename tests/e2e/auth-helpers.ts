@@ -43,7 +43,6 @@ export async function signInTestUser(page: Page): Promise<void> {
 
   // Navigate to login page and sign in via UI
   await page.goto('/login');
-  await page.waitForLoadState('networkidle');
 
   // Fill in credentials
   await page.getByLabel('Email').fill(TEST_USER_EMAIL);
@@ -52,5 +51,4 @@ export async function signInTestUser(page: Page): Promise<void> {
 
   // Wait for navigation to complete (should redirect to / or /workout after login)
   await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
-  await page.waitForLoadState('networkidle');
 }

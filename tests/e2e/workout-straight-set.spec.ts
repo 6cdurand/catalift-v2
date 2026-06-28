@@ -12,7 +12,6 @@ test.describe('Straight-set execution', () => {
 
   test('add exercise → log set → finish → workout saves', async ({ page }) => {
     // Wait for page to be ready (workout should auto-start)
-    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000); // Give time for workout to auto-start and hydration
 
     // Add an exercise
