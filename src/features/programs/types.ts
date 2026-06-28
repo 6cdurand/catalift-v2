@@ -14,7 +14,10 @@ export type Weekday =
   | "sunday";
 export type BlockType = "warmup" | "work" | "circuit" | "cardio" | "cooldown";
 export type TrainingPhase =
+  | "foundation"
   | "strength"
+  | "performance"
+  | "return"
   | "hypertrophy"
   | "endurance"
   | "mobility"
@@ -24,6 +27,8 @@ export type TrainingGoal =
   | "strength"
   | "general_fitness"
   | "weight_loss"
+  | "fat_loss" // alias for weight_loss from v1
+  | "conditioning"
   | "endurance"
   | "mobility";
 export type MovementPattern =
