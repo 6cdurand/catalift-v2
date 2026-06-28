@@ -1,0 +1,33 @@
+-- ============================================================
+-- Migration 00008: Fix RLS helper EXECUTE grants (SEV-1 hotfix)
+-- ------------------------------------------------------------
+-- BUG-013: migration 00005 revoked EXECUTE on are_connected() and
+-- is_conversation_member() from `authenticated`, on the belief that
+-- "helper functions are for triggers/RLS only, not the REST API".
+--
+-- That belief is wrong: a function referenced inside an RLS policy
+-- expression is evaluated AS THE INVOKING ROLE (`authenticated`), so
+-- the invoking role MUST hold EXECUTE on it — even when the function
+-- is SECURITY DEFINER (definer rights apply to the function BODY, not
+-- to the right to CALL it). With EXECUTE revoked, every authenticated
+-- read of users / workouts / personal_bests / client_exercise_history
+-- (and, once exercised, messages) raised:
+--     42501  permission denied for function are_connected
+-- i.e. the entire authenticated data layer was down.
+--
+-- This mirrors the v1 canonical-id incident, whose fix was likewise
+-- `GRANT EXECUTE ON canonical_user_id() TO authenticated`.
+--
+-- Both functions are RLS-only helpers (confirmed: not called as RPCs
+-- from the app — they appear only in generated types). Both are
+-- SECURITY DEFINER and return only a boolean, so granting EXECUTE to
+-- `authenticated` restores RLS without widening the data surface.
+-- ------------------------------------------------------------
+-- ROLLBACK:
+--   revoke execute on function public.are_connected(uuid, uuid)         from authenticated;
+--   revoke execute on function public.is_conversation_member(uuid, uuid) from authenticated;
+-- (only do this if the RLS policies that call them are also removed)
+-- ============================================================
+
+grant execute on function public.are_connected(uuid, uuid)         to authenticated;
+grant execute on function public.is_conversation_member(uuid, uuid) to authenticated;
