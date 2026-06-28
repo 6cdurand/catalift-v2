@@ -1,12 +1,12 @@
 // e2e test: straight-set core loop (w2a)
 
 import { test, expect } from '@playwright/test';
-import { signInTestUser } from './auth-helpers';
+import { mockAuthSession } from './auth-helpers';
 
 test.describe('Straight-set execution', () => {
   test.beforeEach(async ({ page }) => {
-    // Establish real authenticated session (BUG-014 fix)
-    await signInTestUser(page);
+    // Mock auth session (deterministic — same pattern as shell.spec.ts)
+    await mockAuthSession(page);
     await page.goto('/workout/active');
   });
 

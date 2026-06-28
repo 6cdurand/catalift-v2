@@ -1,59 +1,96 @@
-// E2E auth helpers for establishing real authenticated sessions
+// E2E auth helpers — mock Supabase auth session for deterministic tests.
+// Uses the same pattern as shell.spec.ts: inject fake session cookie + mock auth endpoints.
 
 import { type Page } from '@playwright/test';
-import * as fs from 'fs';
-import * as path from 'path';
 
-// Load env vars from .env.local (Playwright doesn't auto-load Next.js env files)
-function loadEnvVars() {
-  const envPath = path.resolve(__dirname, '../../.env.local');
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, 'utf-8');
-    const lines = envContent.split('\n');
-    for (const line of lines) {
-      const match = line.match(/^([^=]+)=(.*)$/);
-      if (match && !process.env[match[1]]) {
-        process.env[match[1]] = match[2];
-      }
-    }
-  }
-}
+const SUPABASE_REF = 'igagmdkdzjkxrwnyvgqk';
+const SUPABASE_URL = `https://${SUPABASE_REF}.supabase.co`;
+const COOKIE_NAME = `sb-${SUPABASE_REF}-auth-token`;
 
-loadEnvVars();
+const fakeUser = {
+  id: 'test-user-id',
+  email: 'e2e+workout@catalift.test',
+  aud: 'authenticated',
+  role: 'authenticated',
+  app_metadata: { provider: 'email' },
+  user_metadata: { mode: 'client' },
+  created_at: new Date().toISOString(),
+};
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-const TEST_USER_EMAIL = 'e2e+workout@catalift.test';
-const TEST_USER_PASSWORD = 'TestPassword123!';
+const fakeSession = {
+  access_token: 'fake-access-token',
+  refresh_token: 'fake-refresh-token',
+  expires_in: 3600,
+  expires_at: Math.floor(Date.now() / 1000) + 3600,
+  token_type: 'bearer',
+  user: fakeUser,
+};
 
 /**
- * Signs in the dedicated test user via the app's login UI.
- * Email confirmation is disabled on staging, so sign-in works immediately.
+ * Mocks Supabase auth endpoints and injects a fake session cookie.
+ * The app's useSession() hook reads the cookie via createBrowserClient,
+ * so this gives the app a valid session without hitting a real backend.
+ *
+ * Also mocks the REST API for user role lookup (same as shell.spec.ts)
+ * and workout insert (POST /rest/v1/workouts) so the full workout flow
+ * works deterministically.
  */
-export async function signInTestUser(page: Page): Promise<void> {
-  // Ensure user exists by trying to sign up via REST API (will fail if exists, that's OK)
-  await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({
-      email: TEST_USER_EMAIL,
-      password: TEST_USER_PASSWORD,
-    }),
+export async function mockAuthSession(page: Page): Promise<void> {
+  // Mock auth endpoints
+  await page.route(`${SUPABASE_URL}/auth/v1/**`, async (route) => {
+    const url = route.request().url();
+    const method = route.request().method();
+
+    if (url.includes('/user') && method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(fakeUser),
+      });
+      return;
+    }
+
+    if (url.includes('/token') && method === 'POST') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(fakeSession),
+      });
+      return;
+    }
+
+    await route.continue();
   });
-  // Ignore errors — user might already exist
 
-  // Navigate to login page and sign in via UI
-  await page.goto('/login');
+  // Mock user role lookup (shell needs public.users.role)
+  await page.route(`${SUPABASE_URL}/rest/v1/users*`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ role: 'client' }),
+    });
+  });
 
-  // Fill in credentials
-  await page.getByLabel('Email').fill(TEST_USER_EMAIL);
-  await page.getByLabel('Password').fill(TEST_USER_PASSWORD);
-  await page.getByRole('button', { name: 'Sign In' }).click();
+  // Mock workout insert (POST /rest/v1/workouts)
+  await page.route(`${SUPABASE_URL}/rest/v1/workouts`, async (route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+      return;
+    }
+    await route.continue();
+  });
 
-  // Wait for navigation to complete (should redirect to / or /workout after login)
-  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 });
+  // Inject fake session cookie
+  await page.context().addCookies([
+    {
+      name: COOKIE_NAME,
+      value: encodeURIComponent(JSON.stringify(fakeSession)),
+      domain: 'localhost',
+      path: '/',
+    },
+  ]);
 }
