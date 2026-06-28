@@ -1,7 +1,6 @@
 // E2E auth helpers for establishing real authenticated sessions
 
 import { type Page } from '@playwright/test';
-import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -33,11 +32,17 @@ const TEST_USER_PASSWORD = 'TestPassword123!';
  * Email confirmation is disabled on staging, so sign-in works immediately.
  */
 export async function signInTestUser(page: Page): Promise<void> {
-  // Ensure user exists by trying to sign up (will fail if exists, that's OK)
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  await supabase.auth.signUp({
-    email: TEST_USER_EMAIL,
-    password: TEST_USER_PASSWORD,
+  // Ensure user exists by trying to sign up via REST API (will fail if exists, that's OK)
+  await fetch(`${SUPABASE_URL}/auth/v1/signup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({
+      email: TEST_USER_EMAIL,
+      password: TEST_USER_PASSWORD,
+    }),
   });
   // Ignore errors — user might already exist
 
