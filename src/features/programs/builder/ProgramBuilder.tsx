@@ -8,7 +8,8 @@ import { useState } from 'react';
 import { SetupStep, type SetupData } from './steps/SetupStep';
 import { BuildDaysStep } from './steps/BuildDaysStep';
 import { ScheduleStep } from './steps/ScheduleStep';
-import { DAY_LABEL_PRESETS } from '../constants';
+import { DAY_LABEL_PRESETS, DEFAULT_SCHEDULE } from '../constants';
+import { useProgramsStore } from '../store';
 import type { ProgramDay } from '../types';
 
 type BuilderStep = 'setup' | 'days' | 'schedule';
@@ -20,6 +21,7 @@ interface ProgramBuilderProps {
 export function ProgramBuilder({ isTrainerMode }: ProgramBuilderProps) {
   const [builderStep, setBuilderStep] = useState<BuilderStep>('setup');
   const [setupData, setSetupData] = useState<SetupData | null>(null);
+  const { setDays, resetBuilder } = useProgramsStore();
 
   const handleSetupContinue = (data: SetupData) => {
     setSetupData(data);
@@ -28,16 +30,17 @@ export function ProgramBuilder({ isTrainerMode }: ProgramBuilderProps) {
   };
 
   const initializeDays = (daysPerWeek: number) => {
-    // Create empty ProgramDay[] from daysPerWeek using DAY_LABEL_PRESETS
     const labels = DAY_LABEL_PRESETS[daysPerWeek] || [];
-    const days: ProgramDay[] = labels.map((label) => ({
+    const schedule = DEFAULT_SCHEDULE[daysPerWeek] || [];
+    const days: ProgramDay[] = labels.map((label, i) => ({
       id: crypto.randomUUID(),
       label,
+      scheduledDay: schedule[i],
       blocks: [],
     }));
 
-    // TODO(w2b): Store days in programs store for BuildDaysStep to consume
-    console.log('Initialized days:', days);
+    resetBuilder();
+    setDays(days);
   };
 
   const handleDaysContinue = () => {
