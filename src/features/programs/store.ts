@@ -24,6 +24,8 @@ import type {
   ProgramExercise,
   MovementPattern,
   SavedProgram,
+  ScheduleMode,
+  Weekday,
 } from "./types";
 
 // ── Block type ordering (ported from v1 WorkoutDayBuilder sortBlocks) ──
@@ -132,6 +134,29 @@ export interface ProgramsState {
   updateExercise: (blockId: string, exerciseId: string, updates: Partial<ProgramExercise>) => void;
   /** Clear builder state. */
   resetBuilder: () => void;
+
+  // ── Schedule state (w2c-1) ─────────────────────────────────────
+  /** Schedule mode for the active builder session. */
+  builderScheduleMode: ScheduleMode;
+  /** Selected weekdays for fixed-schedule mode. */
+  builderSelectedDays: Weekday[];
+  /** Training frequency (sessions/week) for flexible mode. */
+  builderTrainingFrequency: number;
+  /** PT/personal session type per slot index. */
+  builderSessionPTMap: Record<number, "pt" | "personal">;
+  /** Program start date (ISO YYYY-MM-DD). */
+  builderStartDate: string;
+
+  /** Set the schedule mode. */
+  setScheduleMode: (mode: ScheduleMode) => void;
+  /** Toggle a weekday in the selected days list (sorted by WEEKDAYS order). */
+  toggleSelectedDay: (day: Weekday) => void;
+  /** Set the training frequency. */
+  setTrainingFrequency: (freq: number) => void;
+  /** Toggle a session's PT/personal type by slot index. */
+  toggleSessionPT: (slotIdx: number) => void;
+  /** Set the program start date. */
+  setBuilderStartDate: (date: string) => void;
 }
 
 export const useProgramsStore = create<ProgramsState>((set) => ({
@@ -292,5 +317,51 @@ export const useProgramsStore = create<ProgramsState>((set) => ({
       })),
     })),
 
-  resetBuilder: () => set({ builderDays: [], activeDayIndex: 0 }),
+  resetBuilder: () => set({
+    builderDays: [],
+    activeDayIndex: 0,
+    builderScheduleMode: "fixed",
+    builderSelectedDays: [],
+    builderTrainingFrequency: 3,
+    builderSessionPTMap: {},
+    builderStartDate: new Date().toISOString().split("T")[0],
+  }),
+
+  // ── Schedule state (w2c-1) ─────────────────────────────────────
+  builderScheduleMode: "fixed",
+  builderSelectedDays: [],
+  builderTrainingFrequency: 3,
+  builderSessionPTMap: {},
+  builderStartDate: new Date().toISOString().split("T")[0],
+
+  setScheduleMode: (mode) => set({ builderScheduleMode: mode }),
+
+  toggleSelectedDay: (day) =>
+    set((state) => {
+      const WEEKDAYS: Weekday[] = [
+        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+      ];
+      const isSelected = state.builderSelectedDays.includes(day);
+      const next = isSelected
+        ? state.builderSelectedDays.filter((d) => d !== day)
+        : [...state.builderSelectedDays, day].sort(
+            (a, b) => WEEKDAYS.indexOf(a) - WEEKDAYS.indexOf(b),
+          );
+      return { builderSelectedDays: next };
+    }),
+
+  setTrainingFrequency: (freq) => set({ builderTrainingFrequency: freq }),
+
+  toggleSessionPT: (slotIdx) =>
+    set((state) => {
+      const current = state.builderSessionPTMap[slotIdx];
+      return {
+        builderSessionPTMap: {
+          ...state.builderSessionPTMap,
+          [slotIdx]: current === "pt" ? "personal" : "pt",
+        },
+      };
+    }),
+
+  setBuilderStartDate: (date) => set({ builderStartDate: date }),
 }));

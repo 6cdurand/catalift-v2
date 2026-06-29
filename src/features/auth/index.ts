@@ -1,5 +1,6 @@
 export { useSession } from "./hooks/use-session";
 export { useRequireAuth } from "./hooks/use-require-auth";
+export { useUserRole } from "./hooks/use-user-role";
 export { logout } from "./api/logout";
 export { readUserMode, syncUserModeToProfile } from "./api/user-mode";
 export { roleFromProfileRow } from "./api/resolve-role";
