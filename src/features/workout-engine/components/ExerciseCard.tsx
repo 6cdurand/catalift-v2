@@ -14,6 +14,7 @@ interface ExerciseCardProps {
   onUncompleteSet: (entryId: string, setId: string) => void;
   onRemoveSet: (entryId: string, setId: string) => void;
   onRemoveExercise: (entryId: string) => void;
+  hideAddSet?: boolean;
 }
 
 export function ExerciseCard({
@@ -24,6 +25,7 @@ export function ExerciseCard({
   onUncompleteSet,
   onRemoveSet,
   onRemoveExercise,
+  hideAddSet = false,
 }: ExerciseCardProps) {
   const completedCount = entry.sets.filter((s) => s.completed).length;
   const totalCount = entry.sets.length;
@@ -80,14 +82,16 @@ export function ExerciseCard({
       </div>
 
       {/* Add Set button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => onAddSet(entry.id)}
-        className="w-full text-xs text-gray-500 hover:text-sky-500 h-8"
-      >
-        <Plus className="w-3 h-3 mr-1" /> Add Set
-      </Button>
+      {!hideAddSet && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onAddSet(entry.id)}
+          className="w-full text-xs text-gray-500 hover:text-sky-500 h-8"
+        >
+          <Plus className="w-3 h-3 mr-1" /> Add Set
+        </Button>
+      )}
     </div>
   );
 }
