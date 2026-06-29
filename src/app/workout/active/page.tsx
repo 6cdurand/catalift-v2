@@ -1,49 +1,90 @@
 'use client';
 
-// Active workout page \u2014 the straight-set execution screen (w2a, ported from v1 active/page.tsx).
+// Active workout page — the straight-set execution screen (w2a, ported from v1 active/page.tsx).
 // Auth guard, timer, exercise list, finish button. w2a: straight sets only; superset/circuit/cardio/rest-timer are later waves.
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Plus } from 'lucide-react';
 import { exerciseLibrary } from '@/lib/exercises';
+import {
+  createAndPersistCustomExercise,
+  loadCustomExercises,
+  CUSTOM_EXERCISE_CATEGORIES,
+  type CustomExerciseCategory,
+} from '@/lib/exercises';
+import { searchExercises } from '@/lib/exerciseSearch';
+import type { Exercise } from '@/types';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
 import { useActiveWorkoutStore } from '@/features/workout-engine/stores/active-workout-store';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
 import { ExerciseCard } from '@/features/workout-engine/components/ExerciseCard';
-// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
 import { useSession } from '@/features/auth';
 import { shouldRedirectFromActiveWorkout } from './redirect-guard';
 
-// Minimal exercise picker stub (w2a: enough to pick an exercise and call addExercise)
-// TODO: expand to full v1 modal (custom exercise creation, filters, etc.) in a later wave
+// Exercise picker with search + create custom exercise (w6a: ported from v1 CreateCustomExerciseDialog)
 function AddExerciseModal({
   onAdd,
   onClose,
+  userId,
 }: {
   onAdd: (ex: { exerciseId: string; exerciseName: string }) => void;
   onClose: () => void;
+  userId: string | null | undefined;
 }) {
   const [search, setSearch] = useState('');
-  const [filteredExercises, setFilteredExercises] = useState(exerciseLibrary);
+  const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [createCategory, setCreateCategory] = useState<CustomExerciseCategory | ''>('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    const lower = value.toLowerCase().trim();
-    if (!lower) {
-      setFilteredExercises(exerciseLibrary);
-    } else {
-      setFilteredExercises(
-        exerciseLibrary.filter((ex) => ex.name.toLowerCase().includes(lower))
-      );
-    }
-  };
+  // Load custom exercises from IDB on mount
+  useEffect(() => {
+    loadCustomExercises(userId).then(setCustomExercises);
+  }, [userId]);
+
+  const trimmed = search.trim();
+  const results = trimmed
+    ? searchExercises(trimmed, { extraExercises: customExercises, limit: 20 })
+    : [...exerciseLibrary, ...customExercises];
 
   const handleSelect = (ex: { id: string; name: string }) => {
     onAdd({ exerciseId: ex.id, exerciseName: ex.name });
     onClose();
+  };
+
+  const handleCreateClick = () => {
+    setCreateName(trimmed);
+    setCreateCategory('');
+    setShowCreate(true);
+  };
+
+  const handleCreateSubmit = async () => {
+    if (!createName.trim() || !createCategory || !userId || submitting) return;
+    setSubmitting(true);
+    try {
+      const exercise = await createAndPersistCustomExercise({
+        name: createName.trim(),
+        category: createCategory as CustomExerciseCategory,
+        userId,
+      });
+      setCustomExercises(prev => [...prev, exercise]);
+      onAdd({ exerciseId: exercise.id, exerciseName: exercise.name });
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -53,11 +94,11 @@ function AddExerciseModal({
         <Input
           placeholder="Search exercises (e.g. Bench Press)"
           value={search}
-          onChange={(e) => handleSearch(e.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           autoFocus
         />
         <div className="mt-4 max-h-64 overflow-y-auto border border-gray-200 rounded">
-          {filteredExercises.slice(0, 20).map((ex) => (
+          {results.map((ex) => (
             <button
               key={ex.id}
               onClick={() => handleSelect({ id: ex.id, name: ex.name })}
@@ -69,7 +110,18 @@ function AddExerciseModal({
               )}
             </button>
           ))}
-          {filteredExercises.length === 0 && (
+          {trimmed && (
+            <button
+              onClick={handleCreateClick}
+              className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-0"
+            >
+              <div className="font-medium text-sm text-sky-600">
+                Create &apos;{trimmed}&apos;
+              </div>
+              <div className="text-xs text-gray-500">Add as a custom exercise</div>
+            </button>
+          )}
+          {!trimmed && results.length === 0 && (
             <div className="px-3 py-4 text-sm text-gray-500 text-center">
               No exercises found
             </div>
@@ -81,6 +133,63 @@ function AddExerciseModal({
           </Button>
         </div>
       </div>
+
+      {/* Create custom exercise dialog (ported from v1 CreateCustomExerciseDialog) */}
+      {showCreate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-60">
+          <div className="bg-white rounded-lg p-6 w-full max-w-sm">
+            <h3 className="text-lg font-medium mb-1">Create exercise</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              This exercise will be saved to your personal library.
+            </p>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="custom-exercise-name">Name</Label>
+                <Input
+                  id="custom-exercise-name"
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                  placeholder="e.g. High-cable woodchop"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Category</Label>
+                <Select
+                  value={createCategory}
+                  onValueChange={(v) => setCreateCategory(v as CustomExerciseCategory)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Pick a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CUSTOM_EXERCISE_CATEGORIES.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4 justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => setShowCreate(false)}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateSubmit}
+                disabled={!createName.trim() || !createCategory || submitting}
+              >
+                {submitting ? 'Creating…' : 'Create + use'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -226,6 +335,7 @@ export default function ActiveWorkoutPage() {
             setShowAddExercise(false);
           }}
           onClose={() => setShowAddExercise(false)}
+          userId={user?.id}
         />
       )}
     </div>
