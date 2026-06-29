@@ -25,10 +25,10 @@ export function AuthShell({ active, children }: AuthShellProps) {
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col overflow-auto">
       {/* Hero Section (v1 verbatim, logo → "Catalift" text) */}
-      <div className="relative bg-gradient-to-br from-sky-600 via-sky-500 to-orange-400 px-6 pt-16 pb-12 flex-shrink-0 overflow-hidden">
+      <div className="relative bg-gradient-to-br from-sky-600 via-sky-500 to-sky-400 px-6 pt-16 pb-12 flex-shrink-0 overflow-hidden">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_30%_20%,white_1px,transparent_1px)] bg-[length:32px_32px]" />
         <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute -top-12 -left-12 w-48 h-48 bg-orange-500/20 rounded-full blur-3xl" />
+        <div className="absolute -top-12 -left-12 w-48 h-48 bg-sky-500/20 rounded-full blur-3xl" />
         <div className="relative z-10 max-w-md mx-auto text-center">
           <span className="text-4xl font-bold tracking-tight text-white">
             Catalift
