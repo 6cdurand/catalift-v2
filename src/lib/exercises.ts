@@ -8,6 +8,8 @@ const _rawExerciseLibrary: Exercise[] = [
   // CHEST
   {
     id: 'bench-press',
+    aliases: ['Bench Press', 'Flat Bench Press'],
+    alternatives: ['dumbbell-bench-press'],
     name: 'Barbell Bench Press',
     primaryMuscles: ['chest'],
     secondaryMuscles: ['triceps', 'shoulders'],
@@ -35,6 +37,8 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Lie on a decline bench, grip the bar slightly wider than shoulder width, lower to lower chest, press up to full extension.',},
   {
     id: 'dumbbell-bench-press',
+    aliases: ['DB Bench Press', 'Dumbbell Press'],
+    alternatives: ['bench-press'],
     name: 'Dumbbell Bench Press',
     primaryMuscles: ['chest'],
     secondaryMuscles: ['triceps', 'shoulders'],
@@ -98,6 +102,8 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Sit in the machine, grip handles at chest level, press forward to full extension, return slowly.',},
   {
     id: 'pec-deck',
+    aliases: ['Pec Deck', 'Butterfly Machine'],
+    alternatives: ['chest-fly-machine'],
     name: 'Pec Deck Machine',
     primaryMuscles: ['chest'],
     secondaryMuscles: [],
@@ -127,6 +133,8 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Take a wide stance with toes pointed out, grip the bar between your legs, drive through your heels to stand up.',},
   {
     id: 'romanian-deadlift',
+    aliases: ['RDL'],
+    alternatives: ['dumbbell-rdl'],
     name: 'Romanian Deadlift',
     primaryMuscles: ['hamstrings', 'glutes', 'lower_back'],
     secondaryMuscles: ['back'],
@@ -136,6 +144,8 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Hold bar at hip height, hinge at hips pushing them back, lower bar along legs keeping back flat, return to standing.',},
   {
     id: 'dumbbell-rdl',
+    aliases: ['DB RDL', 'Dumbbell RDL'],
+    alternatives: ['romanian-deadlift'],
     name: 'Dumbbell Romanian Deadlift',
     primaryMuscles: ['hamstrings', 'glutes'],
     secondaryMuscles: ['lower_back'],
@@ -145,6 +155,9 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Hold dumbbells in front of thighs, hinge at hips keeping back flat, lower dumbbells along legs, drive hips forward to stand.',},
   {
     id: 'barbell-row',
+    aliases: ['Bent Over Row', 'Barbell Row'],
+    alternatives: ['dumbbell-row'],
+    unilateralVariantId: 'dumbbell-row',
     name: 'Barbell Bent-Over Row',
     primaryMuscles: ['back', 'lats'],
     secondaryMuscles: ['biceps', 'traps'],
@@ -163,6 +176,8 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Hinge forward until torso is parallel to floor, bar rests on ground each rep, explosively row bar to lower chest.',},
   {
     id: 'dumbbell-row',
+    aliases: ['DB Row', 'One Arm Dumbbell Row'],
+    alternatives: ['barbell-row'],
     name: 'Dumbbell Row',
     primaryMuscles: ['back', 'lats'],
     secondaryMuscles: ['biceps'],
@@ -173,6 +188,8 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Place one hand and knee on a bench, row the dumbbell to your hip with the other arm, squeeze shoulder blade at top.',},
   {
     id: 'pull-ups',
+    aliases: ['Pull Up', 'Pullup'],
+    alternatives: ['lat-pulldown'],
     name: 'Pull-Ups',
     primaryMuscles: ['lats', 'back'],
     secondaryMuscles: ['biceps', 'forearms'],
@@ -191,6 +208,8 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Hang from a bar with underhand grip at shoulder width, pull chin above bar, lower with control.',},
   {
     id: 'lat-pulldown',
+    aliases: ['Lat Pulldown'],
+    alternatives: ['pull-ups'],
     name: 'Lat Pulldown',
     primaryMuscles: ['lats'],
     secondaryMuscles: ['biceps', 'back'],
@@ -209,6 +228,9 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Sit at the lat pulldown machine, use a close-grip handle, pull down to upper chest, squeeze lats.',},
   {
     id: 'cable-row',
+    aliases: ['Seated Row'],
+    alternatives: ['single-arm-cable-row'],
+    unilateralVariantId: 'single-arm-cable-row',
     name: 'Seated Cable Row',
     primaryMuscles: ['back', 'lats'],
     secondaryMuscles: ['biceps'],
@@ -218,6 +240,7 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Sit upright at the cable row machine, pull handle to lower chest, squeeze shoulder blades together, return with control.',},
   {
     id: 'single-arm-cable-row',
+    alternatives: ['cable-row'],
     name: 'Single Arm Cable Row',
     primaryMuscles: ['back', 'lats'],
     secondaryMuscles: ['biceps', 'traps'],
@@ -274,6 +297,8 @@ const _rawExerciseLibrary: Exercise[] = [
   // SHOULDERS
   {
     id: 'overhead-press',
+    aliases: ['OHP', 'Military Press', 'Shoulder Press'],
+    alternatives: ['dumbbell-shoulder-press'],
     name: 'Barbell Overhead Press',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: ['triceps', 'traps'],
@@ -292,6 +317,8 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Sit on a bench with back support, press barbell from shoulder level overhead to full extension.',},
   {
     id: 'dumbbell-shoulder-press',
+    aliases: ['DB Shoulder Press'],
+    alternatives: ['overhead-press'],
     name: 'Dumbbell Shoulder Press',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: ['triceps'],
@@ -310,6 +337,8 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Start with dumbbells at chin height palms facing you, press up while rotating palms to face forward at top.',},
   {
     id: 'lateral-raises',
+    aliases: ['Side Raises', 'Lateral Raise'],
+    alternatives: ['cable-lateral-raises'],
     name: 'Dumbbell Lateral Raises',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: [],
@@ -319,6 +348,7 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Stand with dumbbells at sides, raise arms out to sides until parallel with floor, lower with control.',},
   {
     id: 'cable-lateral-raises',
+    alternatives: ['lateral-raises'],
     name: 'Cable Lateral Raises',
     primaryMuscles: ['shoulders'],
     secondaryMuscles: [],
@@ -364,6 +394,8 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Hold barbell with narrow grip, pull bar up along your body to chin height, leading with elbows.',},
   {
     id: 'shrugs',
+    aliases: ['Barbell Shrug'],
+    alternatives: ['dumbbell-shrugs'],
     name: 'Barbell Shrugs',
     primaryMuscles: ['traps'],
     secondaryMuscles: ['shoulders'],
@@ -373,6 +405,7 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Hold barbell at arms length, shrug shoulders straight up toward ears, hold briefly, lower.',},
   {
     id: 'dumbbell-shrugs',
+    alternatives: ['shrugs'],
     name: 'Dumbbell Shrugs',
     primaryMuscles: ['traps'],
     secondaryMuscles: [],
@@ -384,6 +417,8 @@ const _rawExerciseLibrary: Exercise[] = [
   // BICEPS
   {
     id: 'barbell-curl',
+    aliases: ['BB Curl'],
+    alternatives: ['ez-bar-curl'],
     name: 'Barbell Curl',
     primaryMuscles: ['biceps'],
     secondaryMuscles: ['forearms'],
@@ -393,6 +428,8 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Stand with barbell at arms length, curl up by bending elbows keeping upper arms still, lower with control.',},
   {
     id: 'ez-bar-curl',
+    aliases: ['EZ Curl'],
+    alternatives: ['barbell-curl'],
     name: 'EZ Bar Curl',
     primaryMuscles: ['biceps'],
     secondaryMuscles: ['forearms'],
@@ -402,6 +439,9 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Grip the EZ bar on the angled portions, curl up keeping elbows at sides, lower with control.',},
   {
     id: 'dumbbell-curl',
+    aliases: ['DB Curl', 'Dumbbell Curl'],
+    alternatives: ['concentration-curl'],
+    unilateralVariantId: 'concentration-curl',
     name: 'Dumbbell Bicep Curl',
     primaryMuscles: ['biceps'],
     secondaryMuscles: ['forearms'],
@@ -438,6 +478,7 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Rest upper arms on the preacher bench pad, curl the bar up, lower with control for a full stretch.',},
   {
     id: 'concentration-curl',
+    alternatives: ['dumbbell-curl'],
     name: 'Concentration Curl',
     primaryMuscles: ['biceps'],
     secondaryMuscles: [],
@@ -486,6 +527,7 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Support yourself on parallel bars with arms straight, lower body by bending elbows, press back up.',},
   {
     id: 'skull-crushers',
+    aliases: ['Lying Tricep Extension', 'French Press'],
     name: 'Skull Crushers (Lying Tricep Extension)',
     primaryMuscles: ['triceps'],
     secondaryMuscles: [],
@@ -513,6 +555,9 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Attach rope to high cable, push down and spread the rope apart at the bottom, squeeze triceps.',},
   {
     id: 'overhead-tricep-extension',
+    aliases: ['Overhead Tricep Ext'],
+    alternatives: ['kickbacks'],
+    unilateralVariantId: 'kickbacks',
     name: 'Overhead Tricep Extension',
     primaryMuscles: ['triceps'],
     secondaryMuscles: [],
@@ -531,6 +576,7 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Face away from a high cable, grip rope overhead, extend arms forward and up, squeeze triceps.',},
   {
     id: 'kickbacks',
+    alternatives: ['overhead-tricep-extension'],
     name: 'Tricep Kickbacks',
     primaryMuscles: ['triceps'],
     secondaryMuscles: [],
@@ -552,6 +598,8 @@ const _rawExerciseLibrary: Exercise[] = [
   // LEGS - QUADS
   {
     id: 'back-squat',
+    aliases: ['Squat', 'Back Squat'],
+    alternatives: ['front-squat'],
     name: 'Barbell Back Squat',
     primaryMuscles: ['quads', 'glutes'],
     secondaryMuscles: ['hamstrings', 'lower_back'],
@@ -561,6 +609,7 @@ const _rawExerciseLibrary: Exercise[] = [
   },
   {
     id: 'front-squat',
+    alternatives: ['back-squat'],
     name: 'Front Squat',
     primaryMuscles: ['quads'],
     secondaryMuscles: ['glutes', 'abs'],
@@ -667,6 +716,8 @@ const _rawExerciseLibrary: Exercise[] = [
   // LEGS - HAMSTRINGS & GLUTES
   {
     id: 'leg-curl',
+    aliases: ['Hamstring Curl'],
+    alternatives: ['seated-leg-curl'],
     name: 'Lying Leg Curl',
     primaryMuscles: ['hamstrings'],
     secondaryMuscles: [],
@@ -676,6 +727,7 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Lie face down on the machine, curl heels toward glutes by contracting hamstrings, lower slowly.',},
   {
     id: 'seated-leg-curl',
+    alternatives: ['leg-curl'],
     name: 'Seated Leg Curl',
     primaryMuscles: ['hamstrings'],
     secondaryMuscles: [],
@@ -703,6 +755,8 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Place barbell on upper back, hinge forward at hips keeping back straight, return to standing.',},
   {
     id: 'hip-thrust',
+    aliases: ['Hip Thrust'],
+    alternatives: ['glute-bridge'],
     name: 'Barbell Hip Thrust',
     primaryMuscles: ['glutes'],
     secondaryMuscles: ['hamstrings'],
@@ -712,6 +766,8 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Sit with upper back against a bench, barbell over hips, drive hips up squeezing glutes at top, lower.',},
   {
     id: 'glute-bridge',
+    aliases: ['Hip Bridge'],
+    alternatives: ['hip-thrust', 'glute-bridges'],
     name: 'Glute Bridge',
     primaryMuscles: ['glutes'],
     secondaryMuscles: ['hamstrings'],
@@ -721,6 +777,7 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Lie on back with knees bent, drive hips up squeezing glutes at the top, lower with control.',},
   {
     id: 'cable-kickbacks',
+    alternatives: ['glute-kickback-machine'],
     name: 'Cable Glute Kickbacks',
     primaryMuscles: ['glutes'],
     secondaryMuscles: [],
@@ -954,6 +1011,7 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Sit in the machine, grip handles at shoulder height, press overhead to full extension, lower slowly.',},
   {
     id: 'chest-fly-machine',
+    alternatives: ['pec-deck'],
     name: 'Chest Fly Machine',
     primaryMuscles: ['chest'],
     secondaryMuscles: [],
@@ -963,6 +1021,8 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Sit in the machine, grip handles with arms wide, bring handles together in front of chest, squeeze, return.',},
   {
     id: 'hip-abduction',
+    aliases: ['Hip Abductor'],
+    alternatives: ['outer-thigh-machine'],
     name: 'Hip Abduction Machine',
     primaryMuscles: ['glutes'],
     secondaryMuscles: [],
@@ -972,6 +1032,8 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Sit in the machine with legs together, push knees apart against the pads, squeeze glutes, return slowly.',},
   {
     id: 'hip-adduction',
+    aliases: ['Hip Adductor'],
+    alternatives: ['inner-thigh-machine'],
     name: 'Hip Adduction Machine',
     primaryMuscles: ['glutes'],
     secondaryMuscles: [],
@@ -1202,6 +1264,7 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Sit facing the machine, push handles apart by squeezing rear delts and shoulder blades.',},
   {
     id: 'glute-kickback-machine',
+    alternatives: ['cable-kickbacks'],
     name: 'Glute Kickback Machine',
     primaryMuscles: ['glutes'],
     secondaryMuscles: ['hamstrings'],
@@ -1212,6 +1275,7 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Stand in the machine, push one leg back against the pad squeezing glutes, return slowly.',},
   {
     id: 'inner-thigh-machine',
+    alternatives: ['hip-adduction'],
     name: 'Inner Thigh Machine',
     primaryMuscles: ['glutes'],
     secondaryMuscles: [],
@@ -1221,6 +1285,7 @@ const _rawExerciseLibrary: Exercise[] = [
   instructions: 'Sit with legs apart, squeeze legs together against the pads, return slowly.',},
   {
     id: 'outer-thigh-machine',
+    alternatives: ['hip-abduction'],
     name: 'Outer Thigh Machine',
     primaryMuscles: ['glutes'],
     secondaryMuscles: [],
@@ -2299,6 +2364,7 @@ export const warmupExercises: Exercise[] = [
   
   // Activation Exercises
   { id: 'glute-bridges', name: 'Glute Bridges', primaryMuscles: ['glutes'], secondaryMuscles: ['hamstrings'], category: 'activation', equipment: 'bodyweight',
+  alternatives: ['glute-bridge'],
   instructions: 'Lie on back with knees bent, drive hips up squeezing glutes at top, lower with control.',},
   { id: 'bird-dogs', name: 'Bird Dogs', primaryMuscles: ['lower_back', 'abs'], secondaryMuscles: ['glutes'], category: 'activation', equipment: 'bodyweight',
   instructions: 'On all fours, extend opposite arm and leg simultaneously, hold briefly, return and switch sides.',},
