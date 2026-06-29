@@ -3,6 +3,20 @@
 import type { Weekday } from './types';
 
 /**
+ * Weekday ordering — used by the Schedule step fixed-day picker.
+ * Ported from v1 `WEEKDAYS` (builder/page.tsx L174).
+ */
+export const WEEKDAYS: Weekday[] = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+];
+
+/**
  * Default day labels by training frequency (2-6 days/week).
  * Used by initializeDays() when creating empty ProgramDay[] from daysPerWeek.
  */
