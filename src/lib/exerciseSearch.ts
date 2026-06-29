@@ -91,11 +91,42 @@ const FUSE_OPTIONS: IFuseOptions<ExerciseIndexRecord> = {
     { name: 'secondaryMuscles', weight: 0.025 },
     { name: 'equipment', weight: 0.025 },
   ],
-  threshold: 0.4,
-  ignoreLocation: true,
+  threshold: 0.3,
+  ignoreLocation: false,
+  distance: 200,
   includeScore: true,
   minMatchCharLength: 2,
 };
+
+// ── Deterministic fast-path ranking ─────────────────────────
+// Tier 0 = exact name match (case-insensitive)
+// Tier 1 = alias exact match (explicit synonym — stronger than prefix)
+// Tier 2 = name starts with query (prefix)
+// Tier 3 = name or alias contains query (substring)
+const EXACT = 0;
+const ALIAS_EXACT = 1;
+const PREFIX = 2;
+const SUBSTRING = 3;
+
+function deterministicRank(rec: ExerciseIndexRecord, q: string): number | null {
+  const nameLower = rec.name.toLowerCase();
+  const qLower = q.toLowerCase();
+
+  if (nameLower === qLower) return EXACT;
+
+  for (const alias of rec.aliases) {
+    if (alias.toLowerCase() === qLower) return ALIAS_EXACT;
+  }
+
+  if (nameLower.startsWith(qLower)) return PREFIX;
+
+  if (nameLower.includes(qLower)) return SUBSTRING;
+  for (const alias of rec.aliases) {
+    if (alias.toLowerCase().includes(qLower)) return SUBSTRING;
+  }
+
+  return null;
+}
 
 // ── Cached Fuse index for the base pool (no extras) ─────────
 let baseFuse: Fuse<ExerciseIndexRecord> | null = null;
@@ -116,14 +147,14 @@ function buildFuse(extras: Exercise[]): { fuse: Fuse<ExerciseIndexRecord>; recor
 
 /**
  * Search the exercise library. Empty query returns the full (optionally
- * filtered) pool in library order; non-empty query returns Fuse-ranked
- * results with typo tolerance and alias resolution.
+ * filtered) pool in library order; non-empty query returns ranked results
+ * where exact/prefix/alias/substring matches always appear first, followed
+ * by fuzzy (typo-tolerant) matches with a tight threshold.
  */
 export function searchExercises(query: string, opts: SearchOptions = {}): Exercise[] {
   const { limit, blockType, categories, extraExercises } = opts;
   const trimmed = (query || '').trim();
 
-  // Build / reuse the index
   const hasExtras = !!extraExercises && extraExercises.length > 0;
   let pool: Exercise[];
   let results: Exercise[];
@@ -131,12 +162,44 @@ export function searchExercises(query: string, opts: SearchOptions = {}): Exerci
   if (!trimmed) {
     pool = hasExtras ? [...allExercises, ...extraExercises!] : allExercises;
     results = pool;
-  } else if (hasExtras) {
-    const { fuse } = buildFuse(extraExercises!);
-    results = fuse.search(trimmed).map(r => r.item.exercise);
   } else {
-    const fuse = getBaseFuse();
-    results = fuse.search(trimmed).map(r => r.item.exercise);
+    // Build the record pool for deterministic matching
+    const records: ExerciseIndexRecord[] = hasExtras
+      ? [...allExercises, ...extraExercises!].map(toIndexRecord)
+      : (baseRecords ?? (baseRecords = allExercises.map(toIndexRecord)));
+
+    // Phase 1: deterministic matches (exact > alias-exact > prefix > substring)
+    const seen = new Set<string>();
+    const detByTier: ExerciseIndexRecord[][] = [[], [], [], []];
+    for (const rec of records) {
+      const tier = deterministicRank(rec, trimmed);
+      if (tier !== null) {
+        detByTier[tier].push(rec);
+        seen.add(rec.exercise.id);
+      }
+    }
+    const deterministic: Exercise[] = [
+      ...detByTier[EXACT],
+      ...detByTier[ALIAS_EXACT],
+      ...detByTier[PREFIX],
+      ...detByTier[SUBSTRING],
+    ].map(r => r.exercise);
+
+    // Phase 2: fuzzy matches (typo tolerance) — only items not already found
+    let fuzzy: Exercise[] = [];
+    if (hasExtras) {
+      const { fuse } = buildFuse(extraExercises!);
+      fuzzy = fuse.search(trimmed)
+        .filter(r => !seen.has(r.item.exercise.id))
+        .map(r => r.item.exercise);
+    } else {
+      const fuse = getBaseFuse();
+      fuzzy = fuse.search(trimmed)
+        .filter(r => !seen.has(r.item.exercise.id))
+        .map(r => r.item.exercise);
+    }
+
+    results = [...deterministic, ...fuzzy];
   }
 
   if (blockType) results = results.filter(ex => matchesBlockType(ex, blockType));

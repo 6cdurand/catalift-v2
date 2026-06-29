@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Exercise, MuscleGroup, Equipment } from '@/types';
+import { Exercise, MuscleGroup, Equipment, ExerciseCategory } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
+import { getIdbItem, setIdbItem, userScopedKey } from './storage';
 
 // Comprehensive exercise library with muscle targeting (deduplicated — first occurrence of each ID wins)
 const _rawExerciseLibrary: Exercise[] = [
@@ -2172,6 +2173,70 @@ export function createCustomExercise(
     isCustom: true,
     createdBy,
   };
+}
+
+// ── Custom exercise persistence (IDB, user-scoped) ───────────
+// TODO(w6c: custom_exercises table for cross-device sync — needs Christo sign-off + Opus)
+
+export type CustomExerciseCategory = 'strength' | 'endurance' | 'warmup' | 'mobility' | 'cardio';
+
+export const CUSTOM_EXERCISE_CATEGORIES: ReadonlyArray<{
+  value: CustomExerciseCategory;
+  label: string;
+}> = [
+  { value: 'strength', label: 'Strength' },
+  { value: 'endurance', label: 'Endurance' },
+  { value: 'warmup', label: 'Warmup' },
+  { value: 'mobility', label: 'Mobility' },
+  { value: 'cardio', label: 'Cardio' },
+];
+
+function customCategoryToExerciseCategory(category: CustomExerciseCategory): ExerciseCategory {
+  switch (category) {
+    case 'strength': return 'compound';
+    case 'endurance': return 'isolation';
+    case 'warmup': return 'warmup';
+    case 'mobility': return 'stretching';
+    case 'cardio': return 'cardio';
+  }
+}
+
+/** Load this user's custom exercises from IDB. SSR-safe (returns [] on server). */
+export async function loadCustomExercises(userId: string | null | undefined): Promise<Exercise[]> {
+  if (!userId) return [];
+  if (typeof window === 'undefined') return [];
+  const key = userScopedKey('custom-exercises', userId);
+  const records = await getIdbItem<Exercise[]>(key);
+  return records ?? [];
+}
+
+/** Persist a custom exercise to IDB (user-scoped key per AGENTS.md). */
+export async function persistCustomExercise(userId: string, exercise: Exercise): Promise<void> {
+  const key = userScopedKey('custom-exercises', userId);
+  const existing = (await getIdbItem<Exercise[]>(key)) ?? [];
+  await setIdbItem(key, [...existing, exercise]);
+}
+
+/**
+ * Create + persist a custom exercise in one call. Returns the Exercise
+ * ready for immediate selection in the picker.
+ */
+export async function createAndPersistCustomExercise(params: {
+  name: string;
+  category: CustomExerciseCategory;
+  userId: string;
+}): Promise<Exercise> {
+  const exerciseCategory = customCategoryToExerciseCategory(params.category);
+  const exercise = createCustomExercise(
+    params.name.trim(),
+    [],
+    [],
+    'other',
+    params.userId,
+  );
+  exercise.category = exerciseCategory;
+  await persistCustomExercise(params.userId, exercise);
+  return exercise;
 }
 
 // ============ BLOCK TYPE EXERCISE FILTERING ============
