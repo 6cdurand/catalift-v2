@@ -5,12 +5,49 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { StateStorage } from 'zustand/middleware';
-import type { LoggedWorkout, WorkoutBlock, LoggedSet } from '../types';
+import type { LoggedWorkout, WorkoutBlock, LoggedSet, ExerciseEntry } from '../types';
 import { newId } from '../lib/ids';
 import { computeTotalVolume } from '../lib/volume';
 import { toRow } from '../lib/serialize';
 import { persist as persistWorkout } from '../api/persist';
 import { getIdbItem, setIdbItem, removeIdbItem } from '@/lib/storage';
+
+export function entriesOfBlock(block: WorkoutBlock): ExerciseEntry[] {
+  if (block.kind === 'straight') return [block.exercise];
+  if (block.kind === 'superset') return block.exercises;
+  if (block.kind === 'circuit') return block.stations;
+  return []; // cardio has no entries
+}
+
+function mapEntry(
+  blocks: WorkoutBlock[],
+  entryId: string,
+  fn: (e: ExerciseEntry) => ExerciseEntry,
+): WorkoutBlock[] {
+  return blocks.map((block) => {
+    if (block.kind === 'straight') {
+      if (block.exercise.id === entryId) {
+        return { ...block, exercise: fn(block.exercise) };
+      }
+      return block;
+    }
+    if (block.kind === 'superset') {
+      const idx = block.exercises.findIndex((e) => e.id === entryId);
+      if (idx === -1) return block;
+      const exercises = [...block.exercises];
+      exercises[idx] = fn(exercises[idx]);
+      return { ...block, exercises };
+    }
+    if (block.kind === 'circuit') {
+      const idx = block.stations.findIndex((s) => s.id === entryId);
+      if (idx === -1) return block;
+      const stations = [...block.stations];
+      stations[idx] = fn(stations[idx]);
+      return { ...block, stations };
+    }
+    return block;
+  });
+}
 
 interface ActiveWorkoutState {
   activeWorkout: LoggedWorkout | null;
@@ -27,6 +64,16 @@ interface ActiveWorkoutState {
   // Exercise actions (operate on blocks)
   addExercise: (exercise: { exerciseId: string; exerciseName: string }) => void;
   removeExercise: (entryId: string) => void;
+
+  // Block creation + removal (w2b)
+  addSupersetBlock: (exercises: { exerciseId: string; exerciseName: string }[]) => void;
+  addCircuitBlock: (params: {
+    stations: { exerciseId: string; exerciseName: string }[];
+    rounds: number;
+    restSeconds?: number;
+  }) => void;
+  removeBlock: (blockId: string) => void;
+  addRound: (circuitBlockId: string) => void;
 
   // Set actions
   addSet: (entryId: string) => void;
@@ -137,11 +184,130 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         set({
           activeWorkout: {
             ...activeWorkout,
-            blocks: activeWorkout.blocks.filter((block) => {
-              if (block.kind === 'straight') {
-                return block.exercise.id !== entryId;
+            blocks: activeWorkout.blocks
+              .map((block) => {
+                if (block.kind === 'straight') {
+                  return block.exercise.id === entryId ? null : block;
+                }
+                if (block.kind === 'superset') {
+                  const exercises = block.exercises.filter((e) => e.id !== entryId);
+                  if (exercises.length < 1) return null;
+                  if (exercises.length === block.exercises.length) return block;
+                  return { ...block, exercises };
+                }
+                if (block.kind === 'circuit') {
+                  const stations = block.stations.filter((s) => s.id !== entryId);
+                  if (stations.length < 1) return null;
+                  if (stations.length === block.stations.length) return block;
+                  return { ...block, stations };
+                }
+                return block;
+              })
+              .filter((b): b is WorkoutBlock => b !== null),
+          },
+        });
+      },
+
+      addSupersetBlock: (exercises) => {
+        const { activeWorkout } = get();
+        if (!activeWorkout) return;
+        if (exercises.length < 2) return;
+
+        const newBlock: WorkoutBlock = {
+          id: newId(),
+          kind: 'superset',
+          exercises: exercises.map((ex) => ({
+            id: newId(),
+            exerciseId: ex.exerciseId,
+            exerciseName: ex.exerciseName,
+            sets: [],
+            notes: undefined,
+          })),
+        };
+
+        set({
+          activeWorkout: {
+            ...activeWorkout,
+            blocks: [...activeWorkout.blocks, newBlock],
+          },
+        });
+      },
+
+      addCircuitBlock: ({ stations, rounds, restSeconds }) => {
+        const { activeWorkout } = get();
+        if (!activeWorkout) return;
+
+        const newBlock: WorkoutBlock = {
+          id: newId(),
+          kind: 'circuit',
+          rounds,
+          stations: stations.map((st) => ({
+            id: newId(),
+            exerciseId: st.exerciseId,
+            exerciseName: st.exerciseName,
+            sets: [],
+            notes: undefined,
+          })),
+          ...(restSeconds !== undefined ? { restSeconds } : {}),
+        };
+
+        set({
+          activeWorkout: {
+            ...activeWorkout,
+            blocks: [...activeWorkout.blocks, newBlock],
+          },
+        });
+      },
+
+      removeBlock: (blockId) => {
+        const { activeWorkout } = get();
+        if (!activeWorkout) return;
+
+        set({
+          activeWorkout: {
+            ...activeWorkout,
+            blocks: activeWorkout.blocks.filter((b) => b.id !== blockId),
+          },
+        });
+      },
+
+      addRound: (circuitBlockId) => {
+        const { activeWorkout } = get();
+        if (!activeWorkout) return;
+
+        set({
+          activeWorkout: {
+            ...activeWorkout,
+            blocks: activeWorkout.blocks.map((block) => {
+              if (block.kind === 'circuit' && block.id === circuitBlockId) {
+                const maxRound = block.stations.reduce((max, st) => {
+                  const stMax = st.sets.reduce(
+                    (sMax, s) => Math.max(sMax, s.roundIndex ?? -1),
+                    -1,
+                  );
+                  return Math.max(max, stMax);
+                }, -1);
+                const nextRound = maxRound + 1;
+                const nextSetNumber = nextRound + 1;
+
+                const stations = block.stations.map((st, stationIdx) => {
+                  const lastSet = st.sets[st.sets.length - 1];
+                  const newSet: LoggedSet = {
+                    id: newId(),
+                    setNumber: nextSetNumber,
+                    weight: lastSet?.weight ?? null,
+                    reps: lastSet?.reps ?? null,
+                    completed: false,
+                    roundIndex: nextRound,
+                    stationIndex: stationIdx,
+                    previousWeight: null,
+                    previousReps: null,
+                  };
+                  return { ...st, sets: [...st.sets, newSet] };
+                });
+                return { ...block, stations };
               }
-              return true; // w2a: only straight blocks
+              return block;
             }),
           },
         });
@@ -154,28 +320,18 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         set({
           activeWorkout: {
             ...activeWorkout,
-            blocks: activeWorkout.blocks.map((block) => {
-              if (block.kind === 'straight' && block.exercise.id === entryId) {
-                const lastSet = block.exercise.sets[block.exercise.sets.length - 1];
-                const newSet: LoggedSet = {
-                  id: newId(),
-                  setNumber: block.exercise.sets.length + 1,
-                  weight: lastSet?.weight ?? null,
-                  reps: lastSet?.reps ?? null,
-                  completed: false,
-                  // w2a: no history lookup (w3 will wire this)
-                  previousWeight: null,
-                  previousReps: null,
-                };
-                return {
-                  ...block,
-                  exercise: {
-                    ...block.exercise,
-                    sets: [...block.exercise.sets, newSet],
-                  },
-                };
-              }
-              return block;
+            blocks: mapEntry(activeWorkout.blocks, entryId, (entry) => {
+              const lastSet = entry.sets[entry.sets.length - 1];
+              const newSet: LoggedSet = {
+                id: newId(),
+                setNumber: entry.sets.length + 1,
+                weight: lastSet?.weight ?? null,
+                reps: lastSet?.reps ?? null,
+                completed: false,
+                previousWeight: null,
+                previousReps: null,
+              };
+              return { ...entry, sets: [...entry.sets, newSet] };
             }),
           },
         });
@@ -188,18 +344,12 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         set({
           activeWorkout: {
             ...activeWorkout,
-            blocks: activeWorkout.blocks.map((block) => {
-              if (block.kind === 'straight' && block.exercise.id === entryId) {
-                const updated = block.exercise.sets
-                  .filter((s) => s.id !== setId)
-                  .map((s, idx) => ({ ...s, setNumber: idx + 1 }));
-                return {
-                  ...block,
-                  exercise: { ...block.exercise, sets: updated },
-                };
-              }
-              return block;
-            }),
+            blocks: mapEntry(activeWorkout.blocks, entryId, (entry) => ({
+              ...entry,
+              sets: entry.sets
+                .filter((s) => s.id !== setId)
+                .map((s, idx) => ({ ...s, setNumber: idx + 1 })),
+            })),
           },
         });
       },
@@ -211,20 +361,12 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         set({
           activeWorkout: {
             ...activeWorkout,
-            blocks: activeWorkout.blocks.map((block) => {
-              if (block.kind === 'straight' && block.exercise.id === entryId) {
-                return {
-                  ...block,
-                  exercise: {
-                    ...block.exercise,
-                    sets: block.exercise.sets.map((s) =>
-                      s.id === setId ? { ...s, ...updates } : s
-                    ),
-                  },
-                };
-              }
-              return block;
-            }),
+            blocks: mapEntry(activeWorkout.blocks, entryId, (entry) => ({
+              ...entry,
+              sets: entry.sets.map((s) =>
+                s.id === setId ? { ...s, ...updates } : s
+              ),
+            })),
           },
         });
       },
