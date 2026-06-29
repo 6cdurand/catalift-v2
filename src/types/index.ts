@@ -92,6 +92,9 @@ export interface Exercise {
   createdBy?: string;
   blockTypes?: BlockType[];
   alternatingSides?: boolean;
+  aliases?: string[];
+  alternatives?: string[];
+  unilateralVariantId?: string;
 }
 
 // Set Types

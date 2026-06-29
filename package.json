@@ -10,7 +10,8 @@
     "test": "playwright test",
     "test:e2e": "playwright test",
     "test:unit": "vitest run",
-    "test:unit:watch": "vitest"
+    "test:unit:watch": "vitest",
+    "audit:exercises": "node scripts/audit-exercises.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
