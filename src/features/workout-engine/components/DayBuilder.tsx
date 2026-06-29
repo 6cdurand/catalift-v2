@@ -1,7 +1,7 @@
 // DayBuilder.tsx — renders the blocks for a single day.
 // Ported from v1 WorkoutDayBuilder (L920-1119): add-block row, block list, empty state.
 // Receives blocks + callbacks; does NOT manage day index or next-day logic.
-// The rich Exercise-Edit dialog is out of scope (w2b-2) — onEditExercise is a TODO stub.
+// The rich Exercise-Edit dialog (w2b-2) is rendered by the parent builder via onEditExercise.
 
 'use client';
 
