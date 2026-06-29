@@ -9,11 +9,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ChevronRight, Plus, Copy, Trash2 } from 'lucide-react';
-// eslint-disable-next-line no-restricted-imports -- builder step imports shared DayBuilder from workout-engine
+// eslint-disable-next-line no-restricted-imports -- builder step imports shared components from workout-engine
 import { DayBuilder } from '@/features/workout-engine/components/DayBuilder';
+// eslint-disable-next-line no-restricted-imports -- builder step imports shared ExerciseEditDialog from workout-engine
+import { ExerciseEditDialog } from '@/features/workout-engine/components/ExerciseEditDialog';
 import { useProgramsStore } from '../../store';
 import { searchExercisesLite } from '@/lib/exerciseSearch';
 import type { BlockType } from '@/types';
+import type { ProgramExercise } from '../../types';
 
 interface BuildDaysStepProps {
   onContinue: () => void;
@@ -34,10 +37,12 @@ export function BuildDaysStep({ onContinue, onBack }: BuildDaysStepProps) {
     updateBlockName,
     addExerciseToBlock,
     removeExercise,
+    updateExercise,
   } = useProgramsStore();
 
   const [showAddExercise, setShowAddExercise] = useState<string | null>(null);
   const [exerciseSearch, setExerciseSearch] = useState('');
+  const [editingExercise, setEditingExercise] = useState<{ blockId: string; exercise: ProgramExercise } | null>(null);
 
   const activeDay = days[activeDayIndex];
 
@@ -62,9 +67,16 @@ export function BuildDaysStep({ onContinue, onBack }: BuildDaysStepProps) {
   };
 
   const handleEditExercise = (blockId: string, exerciseId: string) => {
-    // TODO(w2b-2): Open rich Exercise-Edit dialog (sets/reps/rest/tempo/notes/swap)
-    // For now this is a stub — the dialog is out of scope for w2b-1.
-    console.log('TODO(w2b-2): open exercise edit dialog', { blockId, exerciseId });
+    for (const day of days) {
+      const block = day.blocks.find((b) => b.id === blockId);
+      if (block) {
+        const ex = block.exercises.find((e) => e.id === exerciseId);
+        if (ex) {
+          setEditingExercise({ blockId, exercise: ex });
+          return;
+        }
+      }
+    }
   };
 
   return (
@@ -155,6 +167,16 @@ export function BuildDaysStep({ onContinue, onBack }: BuildDaysStepProps) {
           Continue to Schedule <ChevronRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
+
+      {/* Exercise Edit Dialog (w2b-2) */}
+      {editingExercise && (
+        <ExerciseEditDialog
+          blockId={editingExercise.blockId}
+          exercise={editingExercise.exercise}
+          onSave={(blockId, exerciseId, updates) => updateExercise(blockId, exerciseId, updates as Partial<ProgramExercise>)}
+          onClose={() => setEditingExercise(null)}
+        />
+      )}
 
       {/* Add Exercise Dialog */}
       <Dialog open={!!showAddExercise} onOpenChange={() => { setShowAddExercise(null); setExerciseSearch(''); }}>

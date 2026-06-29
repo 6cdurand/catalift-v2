@@ -1,7 +1,6 @@
 // ExerciseRow.tsx — one exercise row within a block card.
 // Ported from v1 WorkoutDayBuilder renderExerciseCardBody (L584-727).
-// Simplified: superset/drop-set/reorder are out of scope for w2b-1 (they require
-// the rich Exercise-Edit dialog which is w2b-2). The edit button opens a TODO stub.
+// The edit button opens the rich ExerciseEditDialog (w2b-2) via the parent builder.
 
 'use client';
 
