@@ -1,82 +1,13 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
+import { mockAuthSession } from "./auth-helpers";
 
 type ProbeWindow = typeof window & { __shellProbe?: string };
-
-const SUPABASE_REF = "igagmdkdzjkxrwnyvgqk";
-const SUPABASE_URL = `https://${SUPABASE_REF}.supabase.co`;
-const COOKIE_NAME = `sb-${SUPABASE_REF}-auth-token`;
-
-const fakeUser = {
-  id: "test-user-id",
-  email: "test@catalift.dev",
-  aud: "authenticated",
-  role: "authenticated",
-  app_metadata: { provider: "email" },
-  user_metadata: { mode: "client" },
-  created_at: new Date().toISOString(),
-};
-
-const fakeSession = {
-  access_token: "fake-access-token",
-  refresh_token: "fake-refresh-token",
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  token_type: "bearer",
-  user: fakeUser,
-};
-
-async function mockAuth(page: Page) {
-  await page.route(`${SUPABASE_URL}/auth/v1/**`, async (route) => {
-    const url = route.request().url();
-    const method = route.request().method();
-
-    if (url.includes("/user") && method === "GET") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(fakeUser),
-      });
-      return;
-    }
-
-    if (url.includes("/token") && method === "POST") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(fakeSession),
-      });
-      return;
-    }
-
-    await route.continue();
-  });
-
-  // G-20: the app shell now resolves role from `public.users.role` (a REST
-  // read), not user_metadata. Mock that read so the shell renders
-  // deterministically without a live DB.
-  await page.route(`${SUPABASE_URL}/rest/v1/users*`, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ role: "client" }),
-    });
-  });
-
-  await page.context().addCookies([
-    {
-      name: COOKIE_NAME,
-      value: encodeURIComponent(JSON.stringify(fakeSession)),
-      domain: "localhost",
-      path: "/",
-    },
-  ]);
-}
 
 test.describe("App shell", () => {
   test("shell stays mounted across tab navigation (soft nav, no reload)", async ({
     page,
   }) => {
-    await mockAuth(page);
+    await mockAuthSession(page);
     await page.goto("/today");
 
     const tabBar = page.getByTestId("app-tab-bar");
