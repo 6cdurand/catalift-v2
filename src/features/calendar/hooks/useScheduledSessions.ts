@@ -176,7 +176,7 @@ export function useScheduledSessions(
         if (error) throw error;
 
         const completedDates = (data ?? []).map(
-          (r: { performed_at: string }) => r.performed_at.slice(0, 10),
+          (r: { performed_at: string }) => toISODate(new Date(r.performed_at)),
         );
 
         const completedDayIndices = deriveCompletedDayIndices(
