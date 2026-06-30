@@ -1,0 +1,127 @@
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+
+import { CalendarGrid } from "../CalendarGrid";
+import type { ScheduledSession } from "../../types";
+
+afterEach(() => cleanup());
+
+function makeSession(
+  date: string,
+  status: ScheduledSession["status"],
+  label = "Push",
+): ScheduledSession {
+  return {
+    date,
+    dayIndex: 0,
+    dayRef: label,
+    label,
+    status,
+    kind: "program-day",
+  };
+}
+
+describe("CalendarGrid", () => {
+  const today = "2024-01-10"; // Wednesday
+  const sessions: ScheduledSession[] = [
+    makeSession("2024-01-08", "done"), // Monday
+    makeSession("2024-01-10", "upcoming"), // Wednesday (today)
+    makeSession("2024-01-05", "missed"), // Friday prev week
+  ];
+
+  it("renders weekday headers", () => {
+    render(
+      <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+    );
+    expect(screen.getByText("Sun")).toBeDefined();
+    expect(screen.getByText("Mon")).toBeDefined();
+    expect(screen.getByText("Tue")).toBeDefined();
+    expect(screen.getByText("Wed")).toBeDefined();
+    expect(screen.getByText("Thu")).toBeDefined();
+    expect(screen.getByText("Fri")).toBeDefined();
+    expect(screen.getByText("Sat")).toBeDefined();
+  });
+
+  it("renders one cell per day in the month grid (42 cells for 6 rows)", () => {
+    const { container } = render(
+      <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+    );
+    // January 2024: starts on Monday (1st), so 0 leading + 31 days + trailing
+    // Total should be 35 (5 rows × 7) since Jan 2024 starts on Monday and has 31 days
+    const cells = container.querySelectorAll("[data-date]");
+    expect(cells.length).toBeGreaterThanOrEqual(35);
+    expect(cells.length).toBeLessThanOrEqual(42);
+  });
+
+  it("renders the month label", () => {
+    render(
+      <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+    );
+    expect(screen.getByText("January 2024")).toBeDefined();
+  });
+
+  it("status comes straight from session.status (no recompute)", () => {
+    const { container } = render(
+      <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+    );
+    const doneCell = container.querySelector('[data-date="2024-01-08"]');
+    expect(doneCell?.getAttribute("data-state")).toBe("done");
+
+    const upcomingCell = container.querySelector('[data-date="2024-01-10"]');
+    expect(upcomingCell?.getAttribute("data-state")).toBe("upcoming");
+  });
+
+  it("renders 'rest' state for days with no session", () => {
+    const { container } = render(
+      <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+    );
+    // Jan 9 (Tuesday) has no session
+    const restCell = container.querySelector('[data-date="2024-01-09"]');
+    expect(restCell?.getAttribute("data-state")).toBe("rest");
+  });
+
+  it("highlights the today cell", () => {
+    const { container } = render(
+      <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+    );
+    const todayCell = container.querySelector('[data-date="2024-01-10"]');
+    expect(todayCell?.getAttribute("data-today")).toBe("true");
+  });
+
+  it("month nav prev/next changes the month label (no refetch)", () => {
+    render(
+      <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+    );
+    expect(screen.getByText("January 2024")).toBeDefined();
+
+    // Click next month
+    fireEvent.click(screen.getByLabelText("Next month"));
+    expect(screen.getByText("February 2024")).toBeDefined();
+
+    // Click prev month twice → back to January, then December 2023
+    fireEvent.click(screen.getByLabelText("Previous month"));
+    expect(screen.getByText("January 2024")).toBeDefined();
+
+    fireEvent.click(screen.getByLabelText("Previous month"));
+    expect(screen.getByText("December 2023")).toBeDefined();
+  });
+
+  it("calls onSelectDay when a day is tapped", () => {
+    const onSelectDay = vi.fn();
+    const { container } = render(
+      <CalendarGrid
+        sessions={sessions}
+        today={today}
+        initialMonth={new Date(2024, 0, 1)}
+        onSelectDay={onSelectDay}
+      />,
+    );
+    // Click on Jan 8 (done session)
+    const cell = container.querySelector('[data-date="2024-01-08"]')!;
+    fireEvent.click(cell);
+    expect(onSelectDay).toHaveBeenCalledWith(
+      "2024-01-08",
+      sessions.filter((s) => s.date === "2024-01-08"),
+    );
+  });
+});

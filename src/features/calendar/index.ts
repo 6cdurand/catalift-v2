@@ -1,4 +1,6 @@
-// Public API of the calendar feature (Calendar Wave 1: canonical type + selectors).
+// Public API of the calendar feature.
+// Wave 1: canonical type + pure selectors.
+// Wave 2: shared hook + grid components.
 
 export type {
   ScheduledSession,
@@ -12,3 +14,15 @@ export {
   deriveStatus,
   type BuildScheduledSessionsInput,
 } from "./lib/selectors";
+
+export {
+  useScheduledSessions,
+  buildScheduledSessionsResult,
+  deriveCompletedDayIndices,
+  toISODate,
+  type UseScheduledSessionsArgs,
+  type UseScheduledSessionsResult,
+} from "./hooks/useScheduledSessions";
+
+export { CalendarGrid, type CalendarGridProps } from "./components/CalendarGrid";
+export { DayCell, type DayCellProps } from "./components/DayCell";
