@@ -124,4 +124,85 @@ describe("CalendarGrid", () => {
       sessions.filter((s) => s.date === "2024-01-08"),
     );
   });
+
+  it("renders a Today button that jumps to today's month", () => {
+    render(
+      <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 5, 1)} />,
+    );
+    // Starting on June 2024
+    expect(screen.getByText("June 2024")).toBeDefined();
+
+    // Click Today button
+    fireEvent.click(screen.getByRole("button", { name: "Today" }));
+    expect(screen.getByText("January 2024")).toBeDefined();
+  });
+
+  it("renders view-mode toggle with Month active and Week/Day disabled", () => {
+    render(
+      <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+    );
+    const monthBtn = screen.getByText("Month");
+    expect(monthBtn).toBeDefined();
+
+    const weekBtn = screen.getByLabelText("Week view (coming soon)");
+    expect(weekBtn).toBeDefined();
+    expect(weekBtn).toHaveProperty("disabled", true);
+
+    const dayBtn = screen.getByLabelText("Day view (coming soon)");
+    expect(dayBtn).toBeDefined();
+    expect(dayBtn).toHaveProperty("disabled", true);
+  });
+
+  it("selecting a day renders its session list below the grid", () => {
+    const { container } = render(
+      <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+    );
+
+    // Click on Jan 8 (done session)
+    const cell = container.querySelector('[data-date="2024-01-08"]')!;
+    fireEvent.click(cell);
+
+    // The selected-day list should show the session label
+    expect(screen.getByText("Push")).toBeDefined();
+  });
+
+  it("selecting an empty day shows rest/empty state", () => {
+    const { container } = render(
+      <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+    );
+
+    // Click on Jan 9 (Tuesday — no sessions)
+    const cell = container.querySelector('[data-date="2024-01-09"]')!;
+    fireEvent.click(cell);
+
+    // Should show "Rest day" empty state
+    expect(screen.getByText("Rest day")).toBeDefined();
+  });
+
+  it("day cell renders chips + '+N' overflow when >3 sessions", () => {
+    const manySessions: ScheduledSession[] = [
+      makeSession("2024-01-15", "done", "A"),
+      makeSession("2024-01-15", "done", "B"),
+      makeSession("2024-01-15", "upcoming", "C"),
+      makeSession("2024-01-15", "upcoming", "D"),
+      makeSession("2024-01-15", "missed", "E"),
+    ];
+    const { container } = render(
+      <CalendarGrid sessions={manySessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+    );
+
+    const cell = container.querySelector('[data-date="2024-01-15"]');
+    expect(cell?.getAttribute("data-chip-count")).toBe("5");
+    // The overflow text should be inside the cell
+    expect(cell?.textContent).toContain("+2");
+  });
+
+  it("today ring is present on the today cell", () => {
+    const { container } = render(
+      <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+    );
+    const todayCell = container.querySelector('[data-date="2024-01-10"]');
+    expect(todayCell?.getAttribute("data-today")).toBe("true");
+    expect(todayCell?.className).toContain("ring-sky-500");
+  });
 });
