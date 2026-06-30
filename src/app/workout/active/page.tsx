@@ -15,8 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Layers, Repeat } from 'lucide-react';
-import { exerciseLibrary } from '@/lib/exercises';
+import { Plus, Heart, Layers, Repeat } from 'lucide-react';
+import { exerciseLibrary, allExercises } from '@/lib/exercises';
 import {
   createAndPersistCustomExercise,
   loadCustomExercises,
@@ -29,6 +29,8 @@ import type { Exercise } from '@/types';
 import { useActiveWorkoutStore } from '@/features/workout-engine/stores/active-workout-store';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
 import { ExerciseCard } from '@/features/workout-engine/components/ExerciseCard';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import { CardioCard } from '@/features/workout-engine/components/CardioCard';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
 import { SupersetCard } from '@/features/workout-engine/components/SupersetCard';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
@@ -198,6 +200,122 @@ function AddExerciseModal({
   );
 }
 
+// Cardio exercise picker + initial duration entry (w2c)
+function AddCardioModal({
+  onAdd,
+  onClose,
+  userId,
+}: {
+  onAdd: (params: { exerciseId: string; exerciseName: string; cardio: { durationSeconds: number } }) => void;
+  onClose: () => void;
+  userId: string | null | undefined;
+}) {
+  const [search, setSearch] = useState('');
+  const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
+  const [selected, setSelected] = useState<{ id: string; name: string } | null>(null);
+  const [duration, setDuration] = useState('');
+
+  useEffect(() => {
+    loadCustomExercises(userId).then(setCustomExercises);
+  }, [userId]);
+
+  const trimmed = search.trim();
+  const results = trimmed
+    ? searchExercises(trimmed, { extraExercises: customExercises, limit: 20 })
+    : [...allExercises, ...customExercises];
+
+  const handleConfirm = () => {
+    if (!selected || !duration) return;
+    const minutes = parseFloat(duration);
+    if (isNaN(minutes) || minutes <= 0) return;
+    onAdd({
+      exerciseId: selected.id,
+      exerciseName: selected.name,
+      cardio: { durationSeconds: Math.round(minutes * 60) },
+    });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <h3 className="text-lg font-medium mb-4">Add Cardio</h3>
+
+        {!selected ? (
+          <>
+            <Input
+              placeholder="Search cardio exercises (e.g. Running)"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+            <div className="mt-4 max-h-64 overflow-y-auto border border-gray-200 rounded">
+              {results.map((ex) => (
+                <button
+                  key={ex.id}
+                  onClick={() => setSelected({ id: ex.id, name: ex.name })}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-0"
+                >
+                  <div className="font-medium text-sm">{ex.name}</div>
+                  {ex.equipment && (
+                    <div className="text-xs text-gray-500">{ex.equipment}</div>
+                  )}
+                </button>
+              ))}
+              {!trimmed && results.length === 0 && (
+                <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                  No exercises found
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-4">
+              <span className="font-medium text-sm">{selected.name}</span>
+              <button
+                onClick={() => setSelected(null)}
+                className="text-xs text-sky-500 hover:text-sky-400"
+              >
+                Change
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cardio-duration-input">Duration (minutes)</Label>
+              <Input
+                id="cardio-duration-input"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="any"
+                placeholder="e.g. 30"
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
+                autoFocus
+              />
+            </div>
+          </>
+        )}
+
+        <div className="flex gap-2 mt-4">
+          <Button variant="outline" onClick={onClose} className="flex-1">
+            Cancel
+          </Button>
+          {selected && (
+            <Button
+              onClick={handleConfirm}
+              disabled={!duration || isNaN(parseFloat(duration))}
+              className="flex-1 bg-emerald-500 text-white"
+            >
+              Add Cardio
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Multi-exercise picker for superset/circuit blocks (w2b)
 function AddBlockModal({
   mode,
@@ -263,7 +381,6 @@ function AddBlockModal({
             : 'Select stations and set the number of rounds.'}
         </p>
 
-        {/* Selected exercises */}
         {selected.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-3">
             {selected.map((ex) => (
@@ -311,7 +428,6 @@ function AddBlockModal({
           )}
         </div>
 
-        {/* Circuit params */}
         {mode === 'circuit' && (
           <div className="flex gap-3 mt-4">
             <div className="flex-1">
@@ -385,10 +501,13 @@ export default function ActiveWorkoutPage() {
     completeSet,
     uncompleteSet,
     removeSet,
+    addCardioBlock,
+    updateCardio,
     finishWorkout,
   } = useActiveWorkoutStore();
 
   const [showAddExercise, setShowAddExercise] = useState(false);
+  const [showAddCardio, setShowAddCardio] = useState(false);
   const [showAddBlock, setShowAddBlock] = useState<'superset' | 'circuit' | false>(false);
   const [readyToRedirect, setReadyToRedirect] = useState(false);
   const workoutStartAttempted = useRef(false);
@@ -484,6 +603,16 @@ export default function ActiveWorkoutPage() {
               />
             );
           }
+          if (block.kind === 'cardio') {
+            return (
+              <CardioCard
+                key={block.id}
+                block={block}
+                onUpdateCardio={updateCardio}
+                onRemoveBlock={removeBlock}
+              />
+            );
+          }
           if (block.kind === 'superset') {
             return (
               <SupersetCard
@@ -528,6 +657,13 @@ export default function ActiveWorkoutPage() {
         >
           <Plus className="w-4 h-4 mr-2" /> Add Exercise
         </Button>
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => setShowAddCardio(true)}
+        >
+          <Heart className="w-4 h-4 mr-2" /> Add Cardio
+        </Button>
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -553,6 +689,17 @@ export default function ActiveWorkoutPage() {
             setShowAddExercise(false);
           }}
           onClose={() => setShowAddExercise(false)}
+          userId={user?.id}
+        />
+      )}
+
+      {showAddCardio && (
+        <AddCardioModal
+          onAdd={(params) => {
+            addCardioBlock(params);
+            setShowAddCardio(false);
+          }}
+          onClose={() => setShowAddCardio(false)}
           userId={user?.id}
         />
       )}
