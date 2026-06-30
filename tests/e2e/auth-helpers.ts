@@ -1,11 +1,41 @@
 // E2E auth helpers — mock Supabase auth session for deterministic tests.
-// Uses the same pattern as shell.spec.ts: inject fake session cookie + mock auth endpoints.
+// Inject a fake session cookie + mock auth endpoints (browser-side), AND mint
+// a properly-signed HS256 access token the SERVER-SIDE proxy can verify
+// locally (no network). See src/proxy.ts for the verification + the
+// prod-safety guarantee.
 
+import { createHmac } from 'node:crypto';
 import { type Page } from '@playwright/test';
 
 const SUPABASE_REF = 'igagmdkdzjkxrwnyvgqk';
 const SUPABASE_URL = `https://${SUPABASE_REF}.supabase.co`;
 const COOKIE_NAME = `sb-${SUPABASE_REF}-auth-token`;
+
+/**
+ * Shared test-only secret. The proxy reads it from `process.env.E2E_JWT_SECRET`
+ * (wired in playwright.config.ts -> webServer.env), so both sides agree.
+ * This is NOT a production credential: the proxy bypass that consumes it is
+ * hard-disabled whenever NODE_ENV === "production".
+ */
+export const E2E_JWT_SECRET = 'e2e-insecure-test-jwt-secret-not-for-production';
+
+/** Opt-in flag value that enables the proxy's e2e auth bridge (dev only). */
+export const E2E_AUTH_BYPASS = '1';
+
+function base64url(input: string): string {
+  return Buffer.from(input).toString('base64url');
+}
+
+/** Mints a minimal Supabase-shaped HS256 JWT signed with E2E_JWT_SECRET. */
+function signTestJwt(claims: Record<string, unknown>): string {
+  const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const payload = base64url(JSON.stringify(claims));
+  const data = `${header}.${payload}`;
+  const signature = createHmac('sha256', E2E_JWT_SECRET)
+    .update(data)
+    .digest('base64url');
+  return `${data}.${signature}`;
+}
 
 const fakeUser = {
   id: 'test-user-id',
@@ -17,11 +47,21 @@ const fakeUser = {
   created_at: new Date().toISOString(),
 };
 
+const nowSeconds = Math.floor(Date.now() / 1000);
+
 const fakeSession = {
-  access_token: 'fake-access-token',
+  access_token: signTestJwt({
+    sub: fakeUser.id,
+    email: fakeUser.email,
+    role: 'authenticated',
+    aud: 'authenticated',
+    iss: `${SUPABASE_URL}/auth/v1`,
+    iat: nowSeconds,
+    exp: nowSeconds + 3600,
+  }),
   refresh_token: 'fake-refresh-token',
   expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
+  expires_at: nowSeconds + 3600,
   token_type: 'bearer',
   user: fakeUser,
 };
