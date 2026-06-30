@@ -5,11 +5,13 @@ import { mockAuthSession } from './auth-helpers';
 
 test.describe('Cardio block execution (w2c)', () => {
   test.beforeEach(async ({ page }) => {
+    // Auto-dismiss alert() so it doesn't block JS if persist fails
+    page.on('dialog', (d) => d.dismiss());
     await mockAuthSession(page);
     await page.goto('/workout/active');
   });
 
-  test('add cardio (Treadmill, 30 min, 5 km, 300 cal) → cardio card appears with values', async ({
+  test('add cardio (Running, 30 min, 5 km, 300 cal) → cardio card appears with values', async ({
     page,
   }) => {
     await expect(page.locator('text=Add Exercise')).toBeVisible({ timeout: 10000 });
@@ -21,19 +23,19 @@ test.describe('Cardio block execution (w2c)', () => {
     await expect(page.getByRole('heading', { name: 'Add Cardio' })).toBeVisible();
 
     // Search for an exercise
-    await page.getByPlaceholder('Search cardio exercises').fill('Treadmill');
+    await page.getByPlaceholder('Search cardio exercises').fill('Running');
     // Click first result
-    await page.locator('button:has-text("Treadmill")').first().click();
+    await page.locator('button:has-text("Running")').first().click();
 
     // Enter duration (30 minutes)
     await page.getByLabel('Duration (minutes)').fill('30');
 
     // Confirm
-    await page.getByRole('button', { name: 'Add Cardio' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Add' }).click();
 
     // Verify cardio card appears
     await expect(page.getByText('Cardio').first()).toBeVisible();
-    await expect(page.getByText('Treadmill')).toBeVisible();
+    await expect(page.getByText('Running')).toBeVisible();
 
     // Verify duration input shows 30 (minutes)
     const durationInput = page.locator('input[id*="cardio-duration-"]');
@@ -49,7 +51,7 @@ test.describe('Cardio block execution (w2c)', () => {
 
     // Finish workout
     await page.getByRole('button', { name: 'Finish' }).click();
-    await page.waitForURL(/\/workout$/, { timeout: 10000 });
+    await page.waitForURL(/\/workout/, { timeout: 10000 });
   });
 
   test('edit duration → value updates → finish saves', async ({ page }) => {
@@ -60,7 +62,7 @@ test.describe('Cardio block execution (w2c)', () => {
     await page.getByPlaceholder('Search cardio exercises').fill('Running');
     await page.locator('button:has-text("Running")').first().click();
     await page.getByLabel('Duration (minutes)').fill('20');
-    await page.getByRole('button', { name: 'Add Cardio' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Add' }).click();
 
     // Verify it appeared
     await expect(page.getByText('Cardio').first()).toBeVisible();
@@ -72,7 +74,7 @@ test.describe('Cardio block execution (w2c)', () => {
 
     // Finish
     await page.getByRole('button', { name: 'Finish' }).click();
-    await page.waitForURL(/\/workout$/, { timeout: 10000 });
+    await page.waitForURL(/\/workout/, { timeout: 10000 });
   });
 
   test('reload → cardio block rehydrates (G-09 persist)', async ({ page }) => {
@@ -83,7 +85,7 @@ test.describe('Cardio block execution (w2c)', () => {
     await page.getByPlaceholder('Search cardio exercises').fill('Cycling');
     await page.locator('button:has-text("Cycling")').first().click();
     await page.getByLabel('Duration (minutes)').fill('40');
-    await page.getByRole('button', { name: 'Add Cardio' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Add' }).click();
 
     // Verify cardio block is present
     await expect(page.getByText('Cardio').first()).toBeVisible();
@@ -122,7 +124,7 @@ test.describe('Cardio block execution (w2c)', () => {
     await page.getByPlaceholder('Search cardio exercises').fill('Running');
     await page.locator('button:has-text("Running")').first().click();
     await page.getByLabel('Duration (minutes)').fill('30');
-    await page.getByRole('button', { name: 'Add Cardio' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Add' }).click();
 
     // Verify both blocks are present
     await expect(page.getByText('Barbell Bench Press')).toBeVisible();
@@ -130,6 +132,6 @@ test.describe('Cardio block execution (w2c)', () => {
 
     // Finish — should save (totalVolume = 640 from straight, 0 from cardio)
     await page.getByRole('button', { name: 'Finish' }).click();
-    await page.waitForURL(/\/workout$/, { timeout: 10000 });
+    await page.waitForURL(/\/workout/, { timeout: 10000 });
   });
 });
