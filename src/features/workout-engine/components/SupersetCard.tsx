@@ -1,10 +1,11 @@
-// SupersetCard.tsx — thin wrapper that renders one ExerciseCard per entry in a superset block (w2b).
+// SupersetCard.tsx — v1-fidelity block card for superset blocks (w2b → fidelity port).
+// Rounded-xl border-2 card with per-type tint, chip icon, name, subtitle, 3-dot dropdown.
 // Reuses ExerciseCard/SetRow unchanged; passes store callbacks straight through.
 
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { ExerciseCard } from './ExerciseCard';
+import { BlockMenu } from './BlockMenu';
+import { getBlockStylesFromKind } from './block-types';
 import type { WorkoutBlock, ExerciseEntry, LoggedSet } from '../types';
 
 interface SupersetCardProps {
@@ -28,20 +29,36 @@ export function SupersetCard({
   onRemoveExercise,
   onRemoveBlock,
 }: SupersetCardProps) {
+  const styles = getBlockStylesFromKind(block.kind);
+  const exerciseCount = block.exercises.length;
+
+  const handleSaveToLibrary = () => {
+    // TODO: wire to saved_blocks seam (saveBlock from programs/api/blocks)
+    // Requires converting WorkoutBlock → ProgramBlock — out of scope for look-fidelity port.
+  };
+
   return (
-    <div className="border-l-4 border-sky-400 bg-sky-50/30">
+    <div className={cn('rounded-xl border-2', styles.border, styles.bg)}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-sky-50/50 border-b border-sky-100">
-        <Badge className="bg-sky-100 text-sky-700 hover:bg-sky-100">Superset</Badge>
-        <Button
-          size="icon"
-          variant="ghost"
-          onClick={() => onRemoveBlock(block.id)}
-          className="h-8 w-8 text-gray-500 hover:text-red-400"
-          title="Remove superset block"
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
+      <div className={cn('flex items-center justify-between p-3 border-b', styles.border)}>
+        <div className="flex items-center gap-2">
+          <span className={cn('w-5 h-5 rounded-full inline-flex items-center justify-center', styles.chipBg)}>
+            {styles.chipIcon}
+          </span>
+          <div>
+            <h3 className={cn('font-semibold', styles.text)}>Superset</h3>
+            <p className="text-xs text-gray-500">
+              {exerciseCount} exercise{exerciseCount !== 1 ? 's' : ''}
+              {exerciseCount === 0 && ' • Add exercises below'}
+            </p>
+          </div>
+        </div>
+
+        <BlockMenu
+          hasExercises={exerciseCount > 0}
+          onDelete={() => onRemoveBlock(block.id)}
+          onSaveToLibrary={handleSaveToLibrary}
+        />
       </div>
 
       {/* Entries */}
