@@ -71,8 +71,9 @@ export function CardioCard({
                 onUpdateCardio(block.id, { durationSeconds: 0 });
               } else {
                 const minutes = parseFloat(val);
+                if (isNaN(minutes)) return;
                 onUpdateCardio(block.id, {
-                  durationSeconds: Math.round(minutes * 60),
+                  durationSeconds: Math.max(0, Math.round(minutes * 60)),
                 });
               }
             }}
@@ -98,8 +99,9 @@ export function CardioCard({
                 onUpdateCardio(block.id, { distanceMeters: undefined });
               } else {
                 const km = parseFloat(val);
+                if (isNaN(km)) return;
                 onUpdateCardio(block.id, {
-                  distanceMeters: Math.round(km * 1000),
+                  distanceMeters: Math.max(0, Math.round(km * 1000)),
                 });
               }
             }}
@@ -123,7 +125,9 @@ export function CardioCard({
               if (val === '' || val === undefined) {
                 onUpdateCardio(block.id, { calories: undefined });
               } else {
-                onUpdateCardio(block.id, { calories: parseInt(val, 10) });
+                const cal = parseInt(val, 10);
+                if (isNaN(cal)) return;
+                onUpdateCardio(block.id, { calories: Math.max(0, cal) });
               }
             }}
             className="bg-gray-50 border-gray-200 text-center text-sm"
@@ -146,7 +150,9 @@ export function CardioCard({
               if (val === '' || val === undefined) {
                 onUpdateCardio(block.id, { avgHr: undefined });
               } else {
-                onUpdateCardio(block.id, { avgHr: parseInt(val, 10) });
+                const hr = parseInt(val, 10);
+                if (isNaN(hr)) return;
+                onUpdateCardio(block.id, { avgHr: Math.max(0, hr) });
               }
             }}
             className="bg-gray-50 border-gray-200 text-center text-sm"
@@ -169,7 +175,9 @@ export function CardioCard({
               if (val === '' || val === undefined) {
                 onUpdateCardio(block.id, { maxHr: undefined });
               } else {
-                onUpdateCardio(block.id, { maxHr: parseInt(val, 10) });
+                const hr = parseInt(val, 10);
+                if (isNaN(hr)) return;
+                onUpdateCardio(block.id, { maxHr: Math.max(0, hr) });
               }
             }}
             className="bg-gray-50 border-gray-200 text-center text-sm"
