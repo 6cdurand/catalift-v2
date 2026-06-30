@@ -5,7 +5,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { StateStorage } from 'zustand/middleware';
-import type { LoggedWorkout, WorkoutBlock, LoggedSet } from '../types';
+import type { LoggedWorkout, WorkoutBlock, LoggedSet, CardioPayload } from '../types';
 import { newId } from '../lib/ids';
 import { computeTotalVolume } from '../lib/volume';
 import { toRow } from '../lib/serialize';
@@ -34,6 +34,11 @@ interface ActiveWorkoutState {
   updateSet: (entryId: string, setId: string, updates: Partial<LoggedSet>) => void;
   completeSet: (entryId: string, setId: string) => void;
   uncompleteSet: (entryId: string, setId: string) => void;
+
+  // Cardio block actions (w2c)
+  addCardioBlock: (params: { exerciseId: string; exerciseName: string; cardio: CardioPayload }) => void;
+  updateCardio: (blockId: string, cardio: Partial<CardioPayload>) => void;
+  removeBlock: (blockId: string) => void;
 
   // Timer
   tickTimer: () => void;
@@ -238,6 +243,54 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
       uncompleteSet: (entryId, setId) => {
         const { updateSet } = get();
         updateSet(entryId, setId, { completed: false });
+      },
+
+      addCardioBlock: ({ exerciseId, exerciseName, cardio }) => {
+        const { activeWorkout } = get();
+        if (!activeWorkout) return;
+
+        const newBlock: WorkoutBlock = {
+          id: newId(),
+          kind: 'cardio',
+          exerciseId,
+          exerciseName,
+          cardio,
+        };
+
+        set({
+          activeWorkout: {
+            ...activeWorkout,
+            blocks: [...activeWorkout.blocks, newBlock],
+          },
+        });
+      },
+
+      updateCardio: (blockId, cardioUpdates) => {
+        const { activeWorkout } = get();
+        if (!activeWorkout) return;
+
+        set({
+          activeWorkout: {
+            ...activeWorkout,
+            blocks: activeWorkout.blocks.map((block) =>
+              block.kind === 'cardio' && block.id === blockId
+                ? { ...block, cardio: { ...block.cardio, ...cardioUpdates } }
+                : block
+            ),
+          },
+        });
+      },
+
+      removeBlock: (blockId) => {
+        const { activeWorkout } = get();
+        if (!activeWorkout) return;
+
+        set({
+          activeWorkout: {
+            ...activeWorkout,
+            blocks: activeWorkout.blocks.filter((block) => block.id !== blockId),
+          },
+        });
       },
 
       tickTimer: () => {
