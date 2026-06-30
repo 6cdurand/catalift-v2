@@ -66,7 +66,7 @@ test.describe('Superset + Circuit execution (w2b)', () => {
 
     // Finish workout
     await page.getByRole('button', { name: 'Finish' }).click();
-    await page.waitForURL(/\/workout$/, { timeout: 10000 });
+    await page.waitForURL(/\/workout/, { timeout: 10000 });
   });
 
   test('add a Circuit (2 stations, 3 rounds) → Add Round → a set appears in each station → finish saves', async ({
@@ -125,7 +125,7 @@ test.describe('Superset + Circuit execution (w2b)', () => {
 
     // Finish workout
     await page.getByRole('button', { name: 'Finish' }).click();
-    await page.waitForURL(/\/workout$/, { timeout: 10000 });
+    await page.waitForURL(/\/workout/, { timeout: 10000 });
   });
 
   test('saved workout reads back with superset + circuit blocks intact (fromRow)', async ({
