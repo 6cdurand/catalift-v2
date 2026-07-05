@@ -39,7 +39,11 @@ test.describe('Straight-set execution', () => {
     // Finish workout
     await page.click('text=Finish');
 
-    // Should redirect to /workout
-    await page.waitForURL(/\/workout/, { timeout: 10000 });
+    // Summary screen appears
+    await expect(page.locator('text=Workout Complete')).toBeVisible({ timeout: 10000 });
+
+    // Click Done → redirect to /workout
+    await page.click('text=Done');
+    await page.waitForURL(/\/workout$/, { timeout: 10000 });
   });
 });

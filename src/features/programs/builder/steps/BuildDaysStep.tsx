@@ -4,11 +4,11 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ChevronRight, Plus, Copy, Trash2 } from 'lucide-react';
+import { ChevronRight, Plus, Copy, Trash2, Library, Save } from 'lucide-react';
 // eslint-disable-next-line no-restricted-imports -- builder step imports shared components from workout-engine
 import { DayBuilder } from '@/features/workout-engine/components/DayBuilder';
 // eslint-disable-next-line no-restricted-imports -- builder step imports shared ExerciseEditDialog from workout-engine
@@ -17,6 +17,15 @@ import { useProgramsStore } from '../../store';
 import { searchExercisesLite } from '@/lib/exerciseSearch';
 import type { BlockType } from '@/types';
 import type { ProgramExercise } from '../../types';
+import { BlockLibraryDialog } from '../dialogs/BlockLibraryDialog';
+import { SaveBlockDialog } from '../dialogs/SaveBlockDialog';
+import { CreateFolderDialog } from '../dialogs/folders/CreateFolderDialog';
+import { RenameFolderDialog } from '../dialogs/folders/RenameFolderDialog';
+import { DeleteFolderDialog } from '../dialogs/folders/DeleteFolderDialog';
+import { listBlocks, saveBlock, deleteBlock, moveBlockToFolder, renameFolder, deleteFolder, savedToBlockType } from '../../api/blocks';
+import type { SavedBlock } from '../../api/blocks';
+import { useSession } from '@/features/auth';
+
 
 interface BuildDaysStepProps {
   onContinue: () => void;
@@ -43,6 +52,112 @@ export function BuildDaysStep({ onContinue, onBack }: BuildDaysStepProps) {
   const [showAddExercise, setShowAddExercise] = useState<string | null>(null);
   const [exerciseSearch, setExerciseSearch] = useState('');
   const [editingExercise, setEditingExercise] = useState<{ blockId: string; exercise: ProgramExercise } | null>(null);
+
+  // Block Library state (w2c-2)
+  const { user } = useSession();
+  const [savedBlocks, setSavedBlocks] = useState<SavedBlock[]>([]);
+  const [showBlockLibrary, setShowBlockLibrary] = useState(false);
+  const [showSaveBlockDialog, setShowSaveBlockDialog] = useState(false);
+  const [saveBlockTarget, setSaveBlockTarget] = useState<{ blockId: string; block: ProgramExercise['id'] extends never ? never : typeof activeDay['blocks'][0] } | null>(null);
+  const [showCreateFolderDialog, setShowCreateFolderDialog] = useState(false);
+  const [createFolderMoveTarget, setCreateFolderMoveTarget] = useState<string | null>(null);
+  const [renameFolderTarget, setRenameFolderTarget] = useState<string | null>(null);
+  const [deleteFolderTarget, setDeleteFolderTarget] = useState<string | null>(null);
+
+  const loadSavedBlocks = async () => {
+    try {
+      const blocks = await listBlocks();
+      setSavedBlocks(blocks); // eslint-disable-line react-hooks/set-state-in-effect
+    } catch (err) {
+      console.error('[BuildDaysStep] failed to load saved blocks:', err);
+    }
+  };
+
+  // Load saved blocks on mount (w2c-2)
+  useEffect(() => {
+    if (user) {
+      void loadSavedBlocks(); // eslint-disable-line react-hooks/set-state-in-effect
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const handleAddBlockFromLibrary = (sb: SavedBlock) => {
+    if (!user || !activeDay) return;
+    // Insert saved block into current day with new IDs (G-10)
+    // Map saved block type (v1 names) to v2 BlockType
+    addBlock(activeDayIndex, savedToBlockType(sb.block_type));
+    const newBlock = days[activeDayIndex].blocks[days[activeDayIndex].blocks.length - 1];
+    if (newBlock) {
+      updateBlockName(newBlock.id, sb.name);
+      // Add exercises from saved block
+      sb.block_data.exercises.forEach((ex) => {
+        addExerciseToBlock(newBlock.id, {
+          id: ex.exerciseId,
+          name: ex.exerciseName,
+          pattern: ex.movementPattern || '',
+        });
+        // Update exercise details
+        const addedEx = days[activeDayIndex].blocks
+          .find(b => b.id === newBlock.id)?.exercises
+          .find(e => e.exerciseId === ex.exerciseId);
+        if (addedEx) {
+          updateExercise(newBlock.id, addedEx.id, {
+            sets: ex.sets,
+            reps: ex.reps,
+            rest: ex.rest,
+            repType: ex.repType,
+            tempo: ex.tempo,
+            notes: ex.notes,
+            setStyle: ex.setStyle,
+          } as Partial<ProgramExercise>);
+        }
+      });
+    }
+    setShowBlockLibrary(false);
+  };
+
+  const handleSaveBlock = async (name: string, folder: string | undefined) => {
+    if (!user || !saveBlockTarget) return;
+    await saveBlock(user.id, name, saveBlockTarget.block, folder);
+    await loadSavedBlocks();
+  };
+
+  const handleDeleteBlock = async (blockId: string) => {
+    await deleteBlock(blockId);
+    await loadSavedBlocks();
+  };
+
+  const handleMoveBlock = async (blockId: string, folder: string | null) => {
+    await moveBlockToFolder(blockId, folder);
+    await loadSavedBlocks();
+  };
+
+  const handleCreateFolder = async (name: string, moveTargetBlockId: string | null) => {
+    if (moveTargetBlockId) {
+      await moveBlockToFolder(moveTargetBlockId, name);
+    }
+    await loadSavedBlocks();
+  };
+
+  const handleRenameFolder = async (oldName: string, newName: string) => {
+    const count = await renameFolder(oldName, newName);
+    await loadSavedBlocks();
+    return count;
+  };
+
+  const handleDeleteFolder = async (folderName: string, moveToFolder: string | null) => {
+    const count = await deleteFolder(folderName, moveToFolder);
+    await loadSavedBlocks();
+    return count;
+  };
+
+  const existingFolders = useMemo(() => {
+    const seen = new Set<string>();
+    savedBlocks.forEach((b) => {
+      if (b.folder) seen.add(b.folder);
+    });
+    return Array.from(seen).sort((a, b) => a.localeCompare(b));
+  }, [savedBlocks]);
 
   const activeDay = days[activeDayIndex];
 
@@ -148,6 +263,31 @@ export function BuildDaysStep({ onContinue, onBack }: BuildDaysStepProps) {
         />
       )}
 
+      {/* Block Library actions (w2c-2) */}
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          onClick={() => setShowBlockLibrary(true)}
+          className="flex-1"
+        >
+          <Library className="h-4 w-4 mr-2" /> Block Library
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (activeDay?.blocks.length > 0) {
+              const lastBlock = activeDay.blocks[activeDay.blocks.length - 1];
+              setSaveBlockTarget({ blockId: lastBlock.id, block: lastBlock as never });
+              setShowSaveBlockDialog(true);
+            }
+          }}
+          className="flex-1"
+          disabled={!activeDay || activeDay.blocks.length === 0}
+        >
+          <Save className="h-4 w-4 mr-2" /> Save Block to Library
+        </Button>
+      </div>
+
       {/* Bottom bar */}
       <div className="bg-gray-100 border border-gray-200 rounded-lg px-4 py-3 flex items-center justify-between">
         <span className="text-xs text-gray-500">
@@ -209,6 +349,61 @@ export function BuildDaysStep({ onContinue, onBack }: BuildDaysStepProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Block Library Dialog (w2c-2) */}
+      <BlockLibraryDialog
+        open={showBlockLibrary}
+        onOpenChange={setShowBlockLibrary}
+        savedBlocks={savedBlocks}
+        onRefresh={loadSavedBlocks}
+        onAddBlock={handleAddBlockFromLibrary}
+        onDeleteBlock={handleDeleteBlock}
+        onMoveBlock={handleMoveBlock}
+        onOpenCreateFolder={(moveTargetBlockId) => {
+          setCreateFolderMoveTarget(moveTargetBlockId);
+          setShowCreateFolderDialog(true);
+        }}
+        onOpenRenameFolder={setRenameFolderTarget}
+        onOpenDeleteFolder={setDeleteFolderTarget}
+      />
+
+      {/* Save Block Dialog (w2c-2) */}
+      <SaveBlockDialog
+        open={showSaveBlockDialog}
+        onOpenChange={setShowSaveBlockDialog}
+        block={saveBlockTarget?.block || null}
+        existingFolders={existingFolders}
+        onSave={handleSaveBlock}
+      />
+
+      {/* Folder Dialogs (w2c-2) */}
+      <CreateFolderDialog
+        open={showCreateFolderDialog}
+        onOpenChange={(open) => {
+          setShowCreateFolderDialog(open);
+          if (!open) setCreateFolderMoveTarget(null);
+        }}
+        existingFolders={existingFolders}
+        moveTargetBlockId={createFolderMoveTarget}
+        onCreated={handleCreateFolder}
+      />
+
+      <RenameFolderDialog
+        open={!!renameFolderTarget}
+        onOpenChange={(open) => { if (!open) setRenameFolderTarget(null); }}
+        folderName={renameFolderTarget}
+        existingFolders={existingFolders}
+        onRenamed={handleRenameFolder}
+      />
+
+      <DeleteFolderDialog
+        open={!!deleteFolderTarget}
+        onOpenChange={(open) => { if (!open) setDeleteFolderTarget(null); }}
+        folderName={deleteFolderTarget}
+        existingFolders={existingFolders}
+        blockCount={savedBlocks.filter(b => b.folder === deleteFolderTarget).length}
+        onDeleted={handleDeleteFolder}
+      />
     </div>
   );
 }

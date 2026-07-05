@@ -37,6 +37,10 @@ import { SupersetCard } from '@/features/workout-engine/components/SupersetCard'
 import { CircuitCard } from '@/features/workout-engine/components/CircuitCard';
 import { useSession } from '@/features/auth';
 import { shouldRedirectFromActiveWorkout } from './redirect-guard';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import { WorkoutSummary } from '@/features/workout-engine/components/WorkoutSummary';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import { computeSummaryData, type SummaryData } from '@/features/workout-engine/lib/summarize-blocks';
 
 // Exercise picker with search + create custom exercise (w6a: ported from v1 CreateCustomExerciseDialog)
 function AddExerciseModal({
@@ -511,6 +515,8 @@ export default function ActiveWorkoutPage() {
   const [showAddBlock, setShowAddBlock] = useState<'superset' | 'circuit' | false>(false);
   const [readyToRedirect, setReadyToRedirect] = useState(false);
   const workoutStartAttempted = useRef(false);
+  const [showSummary, setShowSummary] = useState(false);
+  const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
 
   // Real session (BUG-014 fix)
   const { user, loading } = useSession();
@@ -530,8 +536,8 @@ export default function ActiveWorkoutPage() {
   const redirect = shouldRedirectFromActiveWorkout({
     isAuthenticated: !!user,
     activeWorkout,
-    showSummary: false,
-    completedWorkoutData: null,
+    showSummary,
+    completedWorkoutData: summaryData,
     isFinishing,
     hasHydrated,
   });
@@ -555,11 +561,28 @@ export default function ActiveWorkoutPage() {
 
   if (loading || redirect !== null) return null;
 
+  // Render summary screen when workout is finished and summary is showing
+  if (showSummary && summaryData) {
+    return (
+      <WorkoutSummary
+        data={summaryData}
+        onClose={() => {
+          setShowSummary(false);
+          setSummaryData(null);
+          router.push('/workout');
+        }}
+      />
+    );
+  }
+
   const handleFinish = async () => {
     if (isFinishing) return;
+    const durationSnapshot = workoutTimerSeconds;
     const completed = await finishWorkout();
     if (completed) {
-      router.push('/workout');
+      const data = computeSummaryData(completed, durationSnapshot);
+      setSummaryData(data);
+      setShowSummary(true);
     } else {
       alert('Could not save workout. Please try again.');
     }

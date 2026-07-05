@@ -42,3 +42,5 @@ next-env.d.ts
 
 # v1 source reference scratch dir (auth-ui port) — never commit
 /.v1ref/
+playwright-report/
+test-results/

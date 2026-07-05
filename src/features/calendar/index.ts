@@ -24,5 +24,6 @@ export {
   type UseScheduledSessionsResult,
 } from "./hooks/useScheduledSessions";
 
-export { CalendarGrid, type CalendarGridProps } from "./components/CalendarGrid";
+export { CalendarGrid, type CalendarGridProps, type CalendarViewMode } from "./components/CalendarGrid";
 export { DayCell, type DayCellProps } from "./components/DayCell";
+export { SelectedDayList, type SelectedDayListProps } from "./components/SelectedDayList";

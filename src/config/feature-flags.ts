@@ -5,6 +5,7 @@ export const FEATURE_FLAGS = {
   booking: false,
   healthData: false,
   notifications: false,
+  calendarWeekDayView: false,
   // Trainer-invite acceptance. OFF until the `invitations` table + its RLS
   // land in a separate Class-B migration spec. The /invite UI renders
   // verbatim, but the verify/accept path is gated on this flag so we never
