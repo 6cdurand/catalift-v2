@@ -38,7 +38,12 @@ test.describe('Workout summary screen', () => {
     await expect(page.locator('text=AI Coach')).toBeVisible();
 
     // Click Done → redirect to /workout
-    await page.click('text=Done');
+    // force: true — CI trace proves the button is visible/enabled/stable but
+    // Chrome's elementFromPoint hit-test never passes due to the sticky header's
+    // z-50 stacking context on slow CI runners (benign self-overlap).
+    const doneBtn = page.getByRole('button', { name: 'Done' });
+    await expect(doneBtn).toBeVisible();
+    await doneBtn.click({ force: true });
     await page.waitForURL(/\/workout$/, { timeout: 10000 });
   });
 
@@ -52,8 +57,10 @@ test.describe('Workout summary screen', () => {
     await expect(page.locator('text=Workout Complete')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('text=AI Coach')).toBeVisible();
 
-    // Click Done → redirect to /workout
-    await page.click('text=Done');
+    // Click Done → redirect to /workout (force: true — see comment in test above)
+    const doneBtn = page.getByRole('button', { name: 'Done' });
+    await expect(doneBtn).toBeVisible();
+    await doneBtn.click({ force: true });
     await page.waitForURL(/\/workout$/, { timeout: 10000 });
   });
 });

@@ -25,7 +25,7 @@ export function WorkoutSummary({ data, onClose }: WorkoutSummaryProps) {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200 px-4 pt-12 pb-3">
+      <header className="sticky top-0 z-50 bg-white border-b border-gray-200 px-4 pt-12 pb-3">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-bold text-gray-900">Workout Complete</h1>
           <Button onClick={onClose} className="bg-sky-500 hover:bg-sky-600 h-9 px-5">
