@@ -545,7 +545,7 @@ export default function ActiveWorkoutPage() {
   useEffect(() => {
     // Only redirect after we've attempted to start a workout (avoids race where redirect fires before startWorkout)
     if (!loading && readyToRedirect) {
-      if (redirect === 'auth') router.replace('/auth/login');
+      if (redirect === 'auth') router.replace('/login');
       if (redirect === 'workout') router.replace('/workout');
     }
   }, [redirect, router, loading, readyToRedirect]);
@@ -578,12 +578,13 @@ export default function ActiveWorkoutPage() {
   const handleFinish = async () => {
     if (isFinishing) return;
     const durationSnapshot = workoutTimerSeconds;
+    setShowSummary(true);
     const completed = await finishWorkout();
     if (completed) {
       const data = computeSummaryData(completed, durationSnapshot);
       setSummaryData(data);
-      setShowSummary(true);
     } else {
+      setShowSummary(false);
       alert('Could not save workout. Please try again.');
     }
   };
