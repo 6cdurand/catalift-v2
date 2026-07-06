@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    files: ["src/features/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": ["error", {
         patterns: [
