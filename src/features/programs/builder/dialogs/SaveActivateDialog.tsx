@@ -6,6 +6,7 @@
 // Self mode: simple activate confirm.
 
 import { useState } from 'react';
+import { useRoster } from '@/hooks/useRoster';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -46,6 +47,7 @@ export function SaveActivateDialog({
   saving = false,
 }: SaveActivateDialogProps) {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const { roster, loading: loadingRoster } = useRoster(isTrainerMode);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -72,11 +74,21 @@ export function SaveActivateDialog({
                   <SelectValue placeholder="Select a client..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {/* TODO(box-4): Wire to real trainer_clients query when roster is built.
-                      For now, disabled placeholder. Do NOT fake client data. */}
-                  <SelectItem value="none" disabled>
-                    Client roster available when trainer features are enabled
-                  </SelectItem>
+                  {loadingRoster && (
+                    <SelectItem value="loading" disabled>
+                      Loading clients...
+                    </SelectItem>
+                  )}
+                  {!loadingRoster && roster.length === 0 && (
+                    <SelectItem value="empty" disabled>
+                      No clients yet — invite one
+                    </SelectItem>
+                  )}
+                  {!loadingRoster && roster.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name} ({client.email})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {!selectedClientId && (

@@ -1,2 +1,1 @@
-// Trainer ops feature types will be defined here.
-export {};
+export type { RosterClient } from "@/types/roster";

@@ -4,6 +4,7 @@
 // Ported from v1 program builder page
 
 import { useState } from 'react';
+import { useRoster } from '@/hooks/useRoster';
 import { ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -46,6 +47,7 @@ export function SetupStep({ isTrainerMode, onContinue }: SetupStepProps) {
   const [daysPerWeek, setDaysPerWeek] = useState(3);
   const [autoRepeat, setAutoRepeat] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const { roster, loading: loadingRoster } = useRoster(isTrainerMode);
 
   const handleContinue = () => {
     if (!programName.trim()) {
@@ -98,13 +100,28 @@ export function SetupStep({ isTrainerMode, onContinue }: SetupStepProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None (template only)</SelectItem>
-                  {/* TODO(w2a): Wire to real trainer_clients query when Box 4 (roster) is built.
-                      For now, disabled placeholder. Do NOT fake client data. */}
+                  {loadingRoster && (
+                    <SelectItem value="loading" disabled>
+                      Loading clients...
+                    </SelectItem>
+                  )}
+                  {!loadingRoster && roster.length === 0 && (
+                    <SelectItem value="empty" disabled>
+                      No clients yet — invite one
+                    </SelectItem>
+                  )}
+                  {!loadingRoster && roster.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name} ({client.email})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-gray-500">
-                Client roster will be available when trainer features are enabled
-              </p>
+              {!loadingRoster && roster.length === 0 && (
+                <p className="text-xs text-gray-500">
+                  No clients yet — invite one to assign programs
+                </p>
+              )}
             </div>
           )}
 
