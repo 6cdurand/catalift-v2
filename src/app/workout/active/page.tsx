@@ -41,6 +41,30 @@ import { shouldRedirectFromActiveWorkout } from './redirect-guard';
 import { WorkoutSummary } from '@/features/workout-engine/components/WorkoutSummary';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
 import { computeSummaryData, type SummaryData } from '@/features/workout-engine/lib/summarize-blocks';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import {
+  fetchWorkoutHistoryWithBlocks,
+  type WorkoutHistoryBlocks,
+} from '@/features/workout-engine/api/fetch-history';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import { detectNewPRs, buildPreviousBests } from '@/features/workout-engine/lib/history-stats';
+import { getExerciseAnimationUrl } from '@/lib/exerciseAnimations';
+
+// Small exercise-picker thumbnail (v1 fidelity). Fallback = no image box, just the
+// name (v1 active/page.tsx:4941). Render wire-up only.
+function ExerciseThumb({ id }: { id: string }) {
+  const url = getExerciseAnimationUrl(id);
+  if (!url) return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- animated GIF thumbnail; next/image breaks GIF animation
+    <img
+      src={url}
+      alt=""
+      aria-hidden="true"
+      className="w-10 h-10 rounded-md object-cover bg-gray-100 shrink-0"
+    />
+  );
+}
 
 // Exercise picker with search + create custom exercise (w6a: ported from v1 CreateCustomExerciseDialog)
 function AddExerciseModal({
@@ -112,12 +136,15 @@ function AddExerciseModal({
             <button
               key={ex.id}
               onClick={() => handleSelect({ id: ex.id, name: ex.name })}
-              className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-0"
+              className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-0 flex items-center gap-3"
             >
-              <div className="font-medium text-sm">{ex.name}</div>
-              {ex.equipment && (
-                <div className="text-xs text-gray-500">{ex.equipment}</div>
-              )}
+              <ExerciseThumb id={ex.id} />
+              <div className="min-w-0">
+                <div className="font-medium text-sm truncate">{ex.name}</div>
+                {ex.equipment && (
+                  <div className="text-xs text-gray-500 truncate">{ex.equipment}</div>
+                )}
+              </div>
             </button>
           ))}
           {trimmed && (
@@ -258,12 +285,15 @@ function AddCardioModal({
                 <button
                   key={ex.id}
                   onClick={() => setSelected({ id: ex.id, name: ex.name })}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-0"
+                  className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-0 flex items-center gap-3"
                 >
-                  <div className="font-medium text-sm">{ex.name}</div>
-                  {ex.equipment && (
-                    <div className="text-xs text-gray-500">{ex.equipment}</div>
-                  )}
+                  <ExerciseThumb id={ex.id} />
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm truncate">{ex.name}</div>
+                    {ex.equipment && (
+                      <div className="text-xs text-gray-500 truncate">{ex.equipment}</div>
+                    )}
+                  </div>
                 </button>
               ))}
               {!trimmed && results.length === 0 && (
@@ -414,14 +444,17 @@ function AddBlockModal({
               <button
                 key={ex.id}
                 onClick={() => toggleSelect({ id: ex.id, name: ex.name })}
-                className={`w-full text-left px-3 py-2 border-b border-gray-100 last:border-0 ${
+                className={`w-full text-left px-3 py-2 border-b border-gray-100 last:border-0 flex items-center gap-3 ${
                   isSelected ? 'bg-sky-50' : 'hover:bg-gray-100'
                 }`}
               >
-                <div className="font-medium text-sm">{ex.name}</div>
-                {ex.equipment && (
-                  <div className="text-xs text-gray-500">{ex.equipment}</div>
-                )}
+                <ExerciseThumb id={ex.id} />
+                <div className="min-w-0">
+                  <div className="font-medium text-sm truncate">{ex.name}</div>
+                  {ex.equipment && (
+                    <div className="text-xs text-gray-500 truncate">{ex.equipment}</div>
+                  )}
+                </div>
               </button>
             );
           })}
@@ -508,6 +541,7 @@ export default function ActiveWorkoutPage() {
     addCardioBlock,
     updateCardio,
     finishWorkout,
+    setPreviousBests,
   } = useActiveWorkoutStore();
 
   const [showAddExercise, setShowAddExercise] = useState(false);
@@ -517,6 +551,8 @@ export default function ActiveWorkoutPage() {
   const workoutStartAttempted = useRef(false);
   const [showSummary, setShowSummary] = useState(false);
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
+  // Cached workout history (blocks) — feeds the Previous column + finish-time PB detection.
+  const historyRef = useRef<WorkoutHistoryBlocks[]>([]);
 
   // Real session (BUG-014 fix)
   const { user, loading } = useSession();
@@ -559,6 +595,27 @@ export default function ActiveWorkoutPage() {
     return () => clearInterval(interval);
   }, [timerRunning, tickTimer]);
 
+  // Load workout history (blocks) once the session is known. Seeds the Previous
+  // column (tap-to-fill) via the store, and is reused for finish-time PB
+  // detection. Read-only, RLS-scoped; best-effort (Previous simply stays blank
+  // on failure). No writes — Class A.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    fetchWorkoutHistoryWithBlocks(user.id)
+      .then((hist) => {
+        if (cancelled) return;
+        historyRef.current = hist;
+        setPreviousBests(buildPreviousBests(hist));
+      })
+      .catch(() => {
+        /* history is best-effort; the Previous column just stays blank */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, setPreviousBests]);
+
   if (loading || redirect !== null) return null;
 
   // Render summary screen when workout is finished and summary is showing
@@ -581,7 +638,13 @@ export default function ActiveWorkoutPage() {
     setShowSummary(true);
     const completed = await finishWorkout();
     if (completed) {
-      const data = computeSummaryData(completed, durationSnapshot);
+      // New-PR badges: compare the finished session against cached history (read-only).
+      const pbs = detectNewPRs(
+        { id: completed.id, performedAt: completed.performedAt, blocks: completed.blocks },
+        historyRef.current,
+        completed.userId,
+      );
+      const data = computeSummaryData(completed, durationSnapshot, { pbs });
       setSummaryData(data);
     } else {
       setShowSummary(false);

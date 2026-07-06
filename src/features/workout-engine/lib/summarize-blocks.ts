@@ -123,6 +123,7 @@ export interface SummaryData {
 export function computeSummaryData(
   workout: { id: string; name: string | null; blocks: WorkoutBlock[]; totalVolume: number; performedAt: string },
   durationSeconds: number,
+  opts?: { pbs?: string[] },
 ): SummaryData {
   const blocksSummary = summarizeBlocks(workout.blocks);
   const blocks = blocksToMemorySnapshots(workout.blocks);
@@ -145,7 +146,7 @@ export function computeSummaryData(
     exercises,
     sets,
     totalVolume: workout.totalVolume,
-    pbs: [],
+    pbs: opts?.pbs ?? [],
     startTime,
     endTime,
     blocksSummary,

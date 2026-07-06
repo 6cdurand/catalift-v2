@@ -71,3 +71,44 @@ export async function fetchWorkoutHistory(
 
   return (data as WorkoutRow[]).map(mapRowToHistoryItem);
 }
+
+/** A history workout with its raw blocks preserved (for PB + previous-set derivation). */
+export interface WorkoutHistoryBlocks {
+  id: string;
+  performedAt: string;
+  blocks: WorkoutBlock[];
+}
+
+/** Map a raw `workouts` row to a WorkoutHistoryBlocks. Pure — testable in isolation. */
+export function mapRowToHistoryBlocks(row: WorkoutRow): WorkoutHistoryBlocks {
+  return {
+    id: row.id,
+    performedAt: row.performed_at,
+    blocks: Array.isArray(row.exercises)
+      ? (row.exercises as unknown as WorkoutBlock[])
+      : [],
+  };
+}
+
+/**
+ * Fetch the signed-in user's recent completed workouts WITH their raw blocks.
+ * Feeds PB detection + the Previous column. RLS governs via auth.uid(); the
+ * user_id filter is for explicitness. Read-only — no writes, no schema change.
+ */
+export async function fetchWorkoutHistoryWithBlocks(
+  userId: string,
+  limit = 50,
+): Promise<WorkoutHistoryBlocks[]> {
+  const supabase = getBrowserClient();
+  const { data, error } = await supabase
+    .from("workouts")
+    .select("id, performed_at, exercises")
+    .eq("user_id", userId)
+    .order("performed_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  if (!data) return [];
+
+  return (data as WorkoutRow[]).map(mapRowToHistoryBlocks);
+}

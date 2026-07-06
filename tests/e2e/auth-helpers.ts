@@ -111,11 +111,23 @@ export async function mockAuthSession(page: Page): Promise<void> {
     });
   });
 
-  // Mock workout insert (POST /rest/v1/workouts)
-  await page.route(`${SUPABASE_URL}/rest/v1/workouts`, async (route) => {
-    if (route.request().method() === 'POST') {
+  // Mock the workouts table: POST (insert on finish) → 201, and GET (history reads
+  // that feed the Previous column + PB detection) → empty list, so tests stay
+  // deterministic and never touch the real backend. Trailing `*` covers the
+  // `?select=...` query string on reads.
+  await page.route(`${SUPABASE_URL}/rest/v1/workouts*`, async (route) => {
+    const method = route.request().method();
+    if (method === 'POST') {
       await route.fulfill({
         status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+      return;
+    }
+    if (method === 'GET') {
+      await route.fulfill({
+        status: 200,
         contentType: 'application/json',
         body: JSON.stringify([]),
       });

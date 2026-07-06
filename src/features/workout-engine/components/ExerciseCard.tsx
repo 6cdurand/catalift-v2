@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2 } from 'lucide-react';
 import { SetRow } from './SetRow';
+import { getExerciseAnimationUrl } from '@/lib/exerciseAnimations';
 import type { ExerciseEntry, LoggedSet } from '../types';
 
 interface ExerciseCardProps {
@@ -35,9 +36,25 @@ export function ExerciseCard({
       {/* Header */}
       <div className="px-4 py-3">
         <div className="flex items-center justify-between mb-1">
-          <div>
-            <div className="flex items-center gap-1.5">
-              <p className="font-medium text-gray-900">{entry.exerciseName}</p>
+          <div className="flex items-center gap-2 min-w-0">
+            {(() => {
+              const thumb = getExerciseAnimationUrl(entry.exerciseId);
+              // Fallback (v1 active/page.tsx:4941): no image box, just the name.
+              if (!thumb) return null;
+              return (
+                // eslint-disable-next-line @next/next/no-img-element -- animated GIF thumbnail; next/image breaks GIF animation
+                <img
+                  src={thumb}
+                  alt=""
+                  aria-hidden="true"
+                  className="w-10 h-10 rounded-md object-cover bg-gray-100 shrink-0"
+                />
+              );
+            })()}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="font-medium text-gray-900 truncate">{entry.exerciseName}</p>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">

@@ -49,15 +49,22 @@ function mapEntry(
   });
 }
 
+/** Last logged weight×reps per exerciseId, derived from Supabase history (read-only). */
+export type PreviousBestMap = Record<string, { weight: number | null; reps: number | null }>;
+
 interface ActiveWorkoutState {
   activeWorkout: LoggedWorkout | null;
   workoutTimerSeconds: number;
   timerRunning: boolean;
   isFinishing: boolean;
   hasHydrated: boolean;
+  // Previous-set display (Wave: workout-fidelity). Seeded from fetch-history on the
+  // active page; NOT persisted (see partialize) so it never leaks across accounts.
+  previousByExerciseId: PreviousBestMap;
 
   // Lifecycle
   startWorkout: (params: { userId: string; name?: string }) => void;
+  setPreviousBests: (map: PreviousBestMap) => void;
   cancelWorkout: () => void;
   finishWorkout: () => Promise<LoggedWorkout | null>;
 
@@ -102,6 +109,9 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
       timerRunning: false,
       isFinishing: false,
       hasHydrated: false,
+      previousByExerciseId: {},
+
+      setPreviousBests: (map) => set({ previousByExerciseId: map }),
 
       startWorkout: ({ userId, name }) => {
         set({
@@ -294,8 +304,10 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
                 const nextRound = maxRound + 1;
                 const nextSetNumber = nextRound + 1;
 
+                const prevMap = get().previousByExerciseId;
                 const stations = block.stations.map((st, stationIdx) => {
                   const lastSet = st.sets[st.sets.length - 1];
+                  const prev = prevMap[st.exerciseId];
                   const newSet: LoggedSet = {
                     id: newId(),
                     setNumber: nextSetNumber,
@@ -304,8 +316,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
                     completed: false,
                     roundIndex: nextRound,
                     stationIndex: stationIdx,
-                    previousWeight: null,
-                    previousReps: null,
+                    previousWeight: prev?.weight ?? null,
+                    previousReps: prev?.reps ?? null,
                   };
                   return { ...st, sets: [...st.sets, newSet] };
                 });
@@ -326,14 +338,15 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
             ...activeWorkout,
             blocks: mapEntry(activeWorkout.blocks, entryId, (entry) => {
               const lastSet = entry.sets[entry.sets.length - 1];
+              const prev = get().previousByExerciseId[entry.exerciseId];
               const newSet: LoggedSet = {
                 id: newId(),
                 setNumber: entry.sets.length + 1,
                 weight: lastSet?.weight ?? null,
                 reps: lastSet?.reps ?? null,
                 completed: false,
-                previousWeight: null,
-                previousReps: null,
+                previousWeight: prev?.weight ?? null,
+                previousReps: prev?.reps ?? null,
               };
               return { ...entry, sets: [...entry.sets, newSet] };
             }),
@@ -438,7 +451,8 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
     {
       // G-03: IndexedDB key (TODO: user-scoped via userScopedKey when auth is wired)
       name: 'catalift-active-workout',
-      storage: createJSONStorage<ActiveWorkoutState>(() => {
+      // No explicit generic: the persisted shape is inferred from `partialize` below.
+      storage: createJSONStorage(() => {
         // G-03: IndexedDB for bulky workout payload (auth tokens stay in localStorage)
         const idbStorage: StateStorage = {
           getItem: async (key: string) => {
@@ -453,6 +467,14 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
           },
         };
         return idbStorage;
+      }),
+      // Persist only the in-progress workout + timer. previousByExerciseId is derived
+      // from Supabase (RLS-scoped) and re-seeded on mount, so it is deliberately NOT
+      // persisted — this keeps derived, potentially cross-account data out of IDB.
+      partialize: (state) => ({
+        activeWorkout: state.activeWorkout,
+        workoutTimerSeconds: state.workoutTimerSeconds,
+        timerRunning: state.timerRunning,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
