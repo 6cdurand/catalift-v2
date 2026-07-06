@@ -31,6 +31,11 @@ export {
 } from "./api/fetch";
 export { deleteSavedProgram, deleteClientProgram } from "./api/delete";
 export {
+  listBlocks,
+  type SavedBlock,
+  type SavedBlockType,
+} from "./api/blocks";
+export {
   updateSavedProgram,
   updateClientProgramProgress,
   type ClientProgramProgressUpdate,
