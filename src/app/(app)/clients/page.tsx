@@ -35,6 +35,7 @@ import {
 import { toast } from "sonner";
 import { useSession, useUserRole } from "@/features/auth";
 import { fetchClients } from "@/lib/roster";
+import { createInvitation } from "@/lib/invitations";
 import type { RosterClientDetail, RosterStats } from "@/types/roster";
 
 // v2 has no `date-fns`; format a "Mon D" label with Intl.
@@ -68,11 +69,12 @@ export default function ClientsPage() {
   const [showAddClient, setShowAddClient] = useState(false);
   const [viewMode, setViewMode] = useState<"clients" | "groups">("clients");
 
-  // Add Client dialog form state (UI is ported verbatim; submit is deferred).
+  // Add Client dialog form state.
   const [clientMode, setClientMode] = useState<"create" | "link" | null>(null);
   const [newClientName, setNewClientName] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
   const [linkSearchQuery, setLinkSearchQuery] = useState("");
+  const [isInviting, setIsInviting] = useState(false);
 
   const isTrainer = role === "trainer";
 
@@ -103,6 +105,33 @@ export default function ClientsPage() {
       cancelled = true;
     };
   }, [sessionLoading, roleLoading, user, isTrainer]);
+
+  const resetAddClient = () => {
+    setShowAddClient(false);
+    setClientMode(null);
+    setNewClientName("");
+    setNewClientEmail("");
+    setLinkSearchQuery("");
+  };
+
+  // Invite a new client by email (Class A: INSERT into invitations).
+  const handleInvite = async () => {
+    const email = newClientEmail.trim();
+    if (!email) {
+      toast.error("Enter an email to invite");
+      return;
+    }
+    setIsInviting(true);
+    try {
+      await createInvitation(email);
+      toast.success(`Invitation sent to ${email}`);
+      resetAddClient();
+    } catch {
+      toast.error("Failed to create invitation");
+    } finally {
+      setIsInviting(false);
+    }
+  };
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -158,7 +187,12 @@ export default function ClientsPage() {
               <Loader2 className={`w-4 h-4 mr-1 ${isSyncing ? "animate-spin" : ""}`} />
               {isSyncing ? "Syncing..." : "Sync"}
             </Button>
-            <Dialog open={showAddClient} onOpenChange={setShowAddClient}>
+            <Dialog
+              open={showAddClient}
+              onOpenChange={(open) =>
+                open ? setShowAddClient(true) : resetAddClient()
+              }
+            >
               <DialogTrigger asChild>
                 <Button size="sm" className="bg-rose-500 hover:bg-rose-600">
                   <UserPlus className="w-4 h-4 mr-2" />
@@ -172,16 +206,10 @@ export default function ClientsPage() {
                     {clientMode === null
                       ? "Does this client already have an account?"
                       : clientMode === "create"
-                        ? "Create a new account for your client"
+                        ? "Invite a new client by email"
                         : "Link an existing Catalift account"}
                   </DialogDescription>
                 </DialogHeader>
-
-                {/* Deferred: Add Client lands with the trainer-invite migration. */}
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                  Adding clients is coming soon — it ships with the trainer-invite
-                  update.
-                </div>
 
                 {/* Step 1: Choose Create or Link */}
                 {clientMode === null && (
@@ -194,8 +222,8 @@ export default function ClientsPage() {
                         <div className="w-12 h-12 bg-sky-500/20 rounded-full flex items-center justify-center mx-auto">
                           <UserPlus className="h-6 w-6 text-sky-500" />
                         </div>
-                        <h3 className="font-semibold text-gray-900">Create New</h3>
-                        <p className="text-xs text-gray-500">New client, no account yet</p>
+                        <h3 className="font-semibold text-gray-900">Invite New</h3>
+                        <p className="text-xs text-gray-500">Send an email invite</p>
                       </CardContent>
                     </Card>
                     <Card
@@ -226,7 +254,9 @@ export default function ClientsPage() {
                     </Button>
 
                     <div className="space-y-2">
-                      <Label className="text-gray-700">Client Name *</Label>
+                      <Label className="text-gray-700">
+                        Client Name <span className="text-gray-400">(optional)</span>
+                      </Label>
                       <Input
                         type="text"
                         placeholder="John Smith"
@@ -236,9 +266,7 @@ export default function ClientsPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-gray-700">
-                        Email <span className="text-gray-400">(optional)</span>
-                      </Label>
+                      <Label className="text-gray-700">Email *</Label>
                       <Input
                         type="email"
                         placeholder="client@example.com"
@@ -248,10 +276,11 @@ export default function ClientsPage() {
                       />
                     </div>
                     <Button
-                      onClick={() => comingSoon("Create client")}
+                      onClick={handleInvite}
+                      disabled={isInviting || !newClientEmail.trim()}
                       className="w-full bg-rose-500 hover:bg-rose-600"
                     >
-                      Add Client
+                      {isInviting ? "Sending..." : "Send Invite"}
                     </Button>
                   </div>
                 )}
@@ -282,9 +311,11 @@ export default function ClientsPage() {
                       />
                     </div>
 
-                    <p className="text-center text-gray-500 py-8 text-sm">
-                      Linking an existing account is coming soon.
-                    </p>
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      Linking an existing account is coming soon — searching other
+                      users needs a dedicated lookup RPC (current RLS hides
+                      un-linked users).
+                    </div>
 
                     <Button
                       onClick={() => comingSoon("Link client")}
