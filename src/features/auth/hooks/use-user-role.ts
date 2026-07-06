@@ -21,10 +21,16 @@ interface UserRoleState {
 export function useUserRole(
   userId: string | undefined,
 ): UserRoleState {
-  const [state, setState] = useState<UserRoleState>(() => ({
-    role: "client",
-    loading: !!userId,
-  }));
+  // Track the role we resolved AND which userId it belongs to. `loading` is
+  // derived during render (not stored) so that the instant `userId` transitions
+  // from undefined -> defined (e.g. after useSession resolves on a reload), the
+  // hook reports `loading: true` in the SAME commit. Storing loading in state
+  // lagged by one render, which let trainer gates fire a premature redirect
+  // before the role fetch resolved.
+  const [resolved, setResolved] = useState<{
+    id: string;
+    role: UserRole;
+  } | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -38,11 +44,11 @@ export function useUserRole(
       .single()
       .then(({ data }: { data: { role: string } | null }) => {
         if (cancelled) return;
-        setState({ role: roleFromProfileRow(data), loading: false });
+        setResolved({ id: userId, role: roleFromProfileRow(data) });
       })
       .catch(() => {
         if (cancelled) return;
-        setState({ role: "client", loading: false });
+        setResolved({ id: userId, role: "client" });
       });
 
     return () => {
@@ -50,5 +56,7 @@ export function useUserRole(
     };
   }, [userId]);
 
-  return state;
+  if (!userId) return { role: "client", loading: false };
+  if (resolved?.id === userId) return { role: resolved.role, loading: false };
+  return { role: "client", loading: true };
 }

@@ -104,15 +104,19 @@ export async function fetchClients(): Promise<RosterResult> {
       .select("user_id, performed_at")
       .in("user_id", clientIds);
 
-    if (workoutsError) throw workoutsError;
-
-    for (const w of (workouts ?? []) as WorkoutRow[]) {
-      const current = sessionMap.get(w.user_id) ?? { count: 0, last: null };
-      current.count += 1;
-      if (!current.last || new Date(w.performed_at) > new Date(current.last)) {
-        current.last = w.performed_at;
+    // Session enrichment is BEST-EFFORT (mirrors workout-engine's "history is
+    // best-effort" pattern): a workouts read error must NOT blank the roster.
+    // Clients still render with sessions=0 / lastSeen=null if workouts is
+    // unavailable; the map is only populated when the query succeeds.
+    if (!workoutsError) {
+      for (const w of (workouts ?? []) as WorkoutRow[]) {
+        const current = sessionMap.get(w.user_id) ?? { count: 0, last: null };
+        current.count += 1;
+        if (!current.last || new Date(w.performed_at) > new Date(current.last)) {
+          current.last = w.performed_at;
+        }
+        sessionMap.set(w.user_id, current);
       }
-      sessionMap.set(w.user_id, current);
     }
   }
 
