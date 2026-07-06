@@ -1,1 +1,1 @@
-export { fetchRoster } from "@/features/trainer-ops/api/roster";
+export { fetchRoster, fetchClients } from "@/features/trainer-ops/api/roster";

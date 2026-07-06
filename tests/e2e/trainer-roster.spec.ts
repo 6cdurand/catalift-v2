@@ -48,12 +48,31 @@ test.describe('Trainer Roster', () => {
       });
     });
 
+    // Session enrichment is best-effort; mock the workouts GET so the roster is
+    // hermetic. An unmocked GET hits the real project, 401s on the test JWT, and
+    // cascades into a redirect that empties the page.
+    await page.route(`${SUPABASE_URL}/rest/v1/workouts*`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
     await page.goto('http://localhost:3000/clients');
 
+    // Assert real ported row content: name + status + sessions. The v2 row — like
+    // v1 — does not render the client email, so we no longer assert on it.
     await expect(page.getByText('John Doe')).toBeVisible();
-    await expect(page.getByText('john@example.com')).toBeVisible();
     await expect(page.getByText('Jane Smith')).toBeVisible();
-    await expect(page.getByText('jane@example.com')).toBeVisible();
+
+    const johnRow = page.locator('div.shadow-sm').filter({ hasText: 'John Doe' }).first();
+    await expect(johnRow).toContainText('Active');
+    await expect(johnRow).toContainText('0 sessions');
+
+    const janeRow = page.locator('div.shadow-sm').filter({ hasText: 'Jane Smith' }).first();
+    await expect(janeRow).toContainText('Active');
+    await expect(janeRow).toContainText('0 sessions');
   });
 
   test('trainer with no clients sees empty state on /clients page', async ({ page }) => {
@@ -77,7 +96,7 @@ test.describe('Trainer Roster', () => {
 
     await page.goto('http://localhost:3000/clients');
 
-    await expect(page.getByText('No clients yet')).toBeVisible();
+    await expect(page.getByText('No clients found')).toBeVisible();
   });
 
   test('trainer roster persists after page reload', async ({ page }) => {
@@ -107,6 +126,14 @@ test.describe('Trainer Roster', () => {
             },
           },
         ]),
+      });
+    });
+
+    await page.route(`${SUPABASE_URL}/rest/v1/workouts*`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
       });
     });
 
