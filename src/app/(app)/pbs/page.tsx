@@ -59,7 +59,9 @@ function calcE1RM(weight: number, reps: number): number {
   // Delegate to v2 canonical function (Brzycki ≤6, Epley >6)
   // Note: calculate1RM returns rounded values; for smooth chart deltas we'll
   // use it directly since v1 also kept the rounded values in the chart.
-  return calculate1RM(weight, reps);
+  // calculate1RM is nullable (>20 / invalid → null); those are already
+  // excluded above, so coerce any residual null to 0 (skipped downstream).
+  return calculate1RM(weight, reps) ?? 0;
 }
 
 function getExerciseDisplayName(exerciseId: string, fallbackName?: string): string {

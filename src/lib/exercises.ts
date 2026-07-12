@@ -2179,17 +2179,19 @@ export function getExercisesByEquipment(equipment: Equipment): Exercise[] {
   return exerciseLibrary.filter(e => e.equipment === equipment);
 }
 
-// Calculate estimated 1RM
-// Uses Brzycki formula for 1-6 reps (most accurate for strength sets)
-// Uses Epley formula for 7+ reps
-export function calculate1RM(weight: number, reps: number): number {
-  if (reps === 1) return weight; // Actual 1RM, no calculation needed
-  if (reps <= 6) {
-    // Brzycki formula: weight × (36 / (37 - reps))
-    return Math.round(weight * (36 / (37 - reps)));
-  }
-  // Epley formula for higher reps: weight × (1 + reps / 30)
-  return Math.round(weight * (1 + reps / 30));
+/**
+ * Canonical estimated 1RM (e1RM) — the SINGLE source of truth for v2.
+ * - reps 1–6  → Brzycki: weight × (36 / (37 − reps))   (at reps=1 this returns the weight exactly = true 1RM)
+ * - reps 7–20 → Epley:   weight × (1 + reps / 30)
+ * - reps > 20 → null     (both formulas break down; excluded — does NOT count as a PB)
+ * - result rounded to whole kg.
+ * LOCKED 2026-07-13 (DECISIONS.md). Do not change the formula or rounding.
+ */
+export function calculate1RM(weight: number, reps: number): number | null {
+  if (reps <= 0 || weight <= 0) return null;
+  if (reps > 20) return null;
+  if (reps <= 6) return Math.round(weight * (36 / (37 - reps))); // Brzycki (covers 1–6)
+  return Math.round(weight * (1 + reps / 30));                    // Epley 7–20
 }
 
 // Calculate weight for target reps from 1RM

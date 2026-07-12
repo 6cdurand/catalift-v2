@@ -4,6 +4,10 @@
 
 import { Workout, WorkoutExercise, WorkoutSet, PersonalBest } from '@/types';
 import { calculate1RM } from './exercises';
+// BUG-302: calculate1RM stays imported from './exercises' (single source);
+// tier helpers come from the re-ported './strengthRating'. Tier values compute
+// here but are only surfaced by UI that gates on the strengthRating flag.
+import { maleTierRanges, femaleTierRanges, getTierFor1RM } from './strengthRating';
 
 // ============ TYPES ============
 
@@ -283,10 +287,27 @@ export function calculateExerciseStats(
   
   if (sessions.length === 0) return null;
   
-  // Tier info removed — strengthRating.ts was DROPPED (BUG-302).
-  // currentTier and tierProgress remain in the interface but are always undefined.
-  const currentTier: string | undefined = undefined;
-  const tierProgress: number | undefined = undefined;
+  // Get tier info if available (BUG-302: strengthRating.ts re-ported, tier
+  // computation restored). Values compute regardless of the strengthRating
+  // feature flag; only the UI that reads them gates on the flag.
+  const tierRanges = isMale ? maleTierRanges : femaleTierRanges;
+  const ranges = tierRanges[normalizedId];
+  let currentTier: string | undefined;
+  let tierProgress: number | undefined;
+
+  if (ranges && allTimeBest1RM > 0) {
+    currentTier = getTierFor1RM(allTimeBest1RM, normalizedId, isMale);
+    // Calculate progress within tier.
+    // v11-D4 added a `polarity` string field to TierRange, so `keyof TierRange`
+    // now includes 'polarity'. Restrict to the tuple-valued tier keys so we
+    // know tierBounds is [number, number] | undefined.
+    type TierKey = 'beginner' | 'novice' | 'intermediate' | 'advanced' | 'elite';
+    const tierBounds = ranges[currentTier as TierKey];
+    if (tierBounds) {
+      const [min, max] = tierBounds;
+      tierProgress = max > min ? Math.min(100, ((allTimeBest1RM - min) / (max - min)) * 100) : 100;
+    }
+  }
   
   // Format exercise name
   const exerciseName = normalizedId

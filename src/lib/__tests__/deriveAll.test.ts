@@ -94,8 +94,8 @@ describe('recomputePBs', () => {
     expect(pbs[0].exerciseId).toBe('bench-press');
     expect(pbs[0].bestWeight).toBe(100);
     expect(pbs[0].bestReps).toBe(5);
-    // Epley: 100 * (1 + 5/30) = 100 * 1.1667 = 116.7
-    expect(pbs[0].oneRepMax).toBeCloseTo(116.7, 0);
+    // BUG-302 canonical: reps<=6 → Brzycki round(100 * 36/32) = 113
+    expect(pbs[0].oneRepMax).toBe(113);
   });
 
   it('picks the highest 1RM across multiple workouts', () => {
@@ -111,9 +111,9 @@ describe('recomputePBs', () => {
     });
     const pbs = recomputePBs([w1, w2], 'user-1', identityNormalizer);
     expect(pbs).toHaveLength(1);
-    // 100 * (1 + 3/30) = 110
+    // BUG-302 canonical: reps<=6 → Brzycki round(100 * 36/34) = 106
     expect(pbs[0].bestWeight).toBe(100);
-    expect(pbs[0].oneRepMax).toBeCloseTo(110, 0);
+    expect(pbs[0].oneRepMax).toBe(106);
   });
 
   it('handles tie: same 1RM from different weight/reps combos', () => {
