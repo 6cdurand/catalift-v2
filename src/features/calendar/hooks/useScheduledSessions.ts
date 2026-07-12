@@ -12,15 +12,19 @@ import { useEffect, useState } from "react";
 import { getBrowserClient } from "@/lib/supabase";
 import { useSession } from "@/features/auth";
 import {
+  deriveCompletedDayIndices,
   getNextProgramWorkout,
   useProgramsStore,
   type ClientProgram,
   type NextWorkoutResult,
-  type Weekday,
 } from "@/features/programs";
 
 import { buildScheduledSessions, getSessionsForDate } from "../lib/selectors";
 import type { ScheduledSession, ScheduledSessionStatus } from "../types";
+
+// Re-exported for back-compat: the implementation now lives in the programs
+// domain (single source, shared with the client program page) — see BUG parity.
+export { deriveCompletedDayIndices };
 
 // ─── Public interface ──────────────────────────────────────────────────────
 
@@ -45,51 +49,6 @@ export function toISODate(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
-}
-
-const WEEKDAY_NAMES: Weekday[] = [
-  "sunday",
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-];
-
-/**
- * Derive which weeklyPlan indices are completed, from workout dates + program.
- *
- * Fixed mode: each completed date maps to a weekday → weeklyPlan index with
- *   that scheduledDay. Unique set.
- * Flexible mode: sequential [0, 1, ..., min(count, planLength) - 1].
- *
- * This is a MAPPING step (date → plan index), NOT next-day arithmetic.
- */
-export function deriveCompletedDayIndices(
-  program: ClientProgram,
-  completedDates: string[],
-): number[] {
-  if (completedDates.length === 0) return [];
-
-  if (program.scheduleMode === "flexible") {
-    const planLen = program.weeklyPlan.length;
-    if (planLen === 0) return [];
-    const count = Math.min(completedDates.length, planLen);
-    return Array.from({ length: count }, (_, i) => i);
-  }
-
-  // Fixed mode: map each completed date → weekday → weeklyPlan index
-  const indices = new Set<number>();
-  for (const iso of completedDates) {
-    const d = new Date(iso + "T00:00:00");
-    const weekday = WEEKDAY_NAMES[d.getDay()];
-    const planIdx = program.weeklyPlan.findIndex(
-      (p) => p.scheduledDay === weekday,
-    );
-    if (planIdx !== -1) indices.add(planIdx);
-  }
-  return [...indices];
 }
 
 /**

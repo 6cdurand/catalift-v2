@@ -1,31 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import type { ClientProgram } from "@/features/programs";
+import type { NextWorkoutResult } from "@/features/programs";
+
+// ── mocks ────────────────────────────────────────────────────────────────────
+const push = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+}));
 
 vi.mock("@/features/auth", () => ({
   useSession: () => ({ user: { id: "client-1" }, loading: false }),
-}));
-
-const { mockProgramsStore } = vi.hoisted(() => ({
-  mockProgramsStore: {
-    clientPrograms: [] as ClientProgram[],
-    hydrateClientPrograms: vi.fn(),
-  },
-}));
-
-vi.mock("@/features/programs", () => ({
-  fetchClientProgramsForClient: vi.fn(),
-  useProgramsStore: (selector?: (s: typeof mockProgramsStore) => unknown) =>
-    selector ? selector(mockProgramsStore) : mockProgramsStore,
-}));
-
-vi.mock("@/features/workout-engine/components/block-types", () => ({
-  getBlockStyles: () => ({
-    border: "border-blue-300",
-    accent: "bg-blue-400",
-    badge: "bg-blue-100 text-blue-700",
-  }),
-  getBlockTypeMeta: () => ({ value: "work", label: "Strength", icon: null }),
 }));
 
 vi.mock("@/components/layouts/MainLayout", () => ({
@@ -34,7 +19,25 @@ vi.mock("@/components/layouts/MainLayout", () => ({
   ),
 }));
 
-import { fetchClientProgramsForClient } from "@/features/programs";
+// The data hook is the seam — we drive the page purely by its return value.
+const hookState: {
+  activeProgram: ClientProgram | null;
+  next: NextWorkoutResult | null;
+  completedDayIndices: number[];
+  isLoading: boolean;
+  error: Error | null;
+} = {
+  activeProgram: null,
+  next: null,
+  completedDayIndices: [],
+  isLoading: false,
+  error: null,
+};
+
+vi.mock("@/features/programs/client/useActiveClientProgram", () => ({
+  useActiveClientProgram: () => hookState,
+}));
+
 import ProgramPage from "../page";
 
 function makeProgram(overrides: Partial<ClientProgram> = {}): ClientProgram {
@@ -65,6 +68,7 @@ function makeProgram(overrides: Partial<ClientProgram> = {}): ClientProgram {
                 sets: 4,
                 reps: "6-8",
                 rest: "120s",
+                tempo: "3110",
               },
             ],
           },
@@ -78,50 +82,85 @@ function makeProgram(overrides: Partial<ClientProgram> = {}): ClientProgram {
     sessionPTMap: {},
     nextWorkoutIndex: 0,
     autoRepeat: false,
-    startDate: "2024-01-01",
-    createdAt: "2024-01-01T00:00:00.000Z",
-    updatedAt: "2024-01-01T00:00:00.000Z",
+    startDate: "2026-01-05",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
+  };
+}
+
+function nextFor(program: ClientProgram): NextWorkoutResult {
+  return {
+    dayIndex: 0,
+    day: program.weeklyPlan[0],
+    remainingThisWeek: 2,
+    completedDayIndices: [],
+    lockedDayIndices: [],
+    isScheduledToday: true,
+    isExpired: false,
   };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockProgramsStore.clientPrograms = [];
-  vi.mocked(fetchClientProgramsForClient).mockResolvedValue([]);
+  hookState.activeProgram = null;
+  hookState.next = null;
+  hookState.completedDayIndices = [];
+  hookState.isLoading = false;
+  hookState.error = null;
 });
 
-afterEach(() => {
-  cleanup();
-});
+afterEach(() => cleanup());
 
-describe("ProgramPage", () => {
-  it("renders program name, schedule mode, days, blocks, and exercises", async () => {
+describe("ProgramPage (w3 client program page)", () => {
+  it("shows a loading state while fetching", () => {
+    hookState.isLoading = true;
+    render(<ProgramPage />);
+    expect(screen.getByText("Loading your program…")).toBeDefined();
+  });
+
+  it("shows the empty state when no program is assigned", () => {
+    hookState.activeProgram = null;
+    render(<ProgramPage />);
+    expect(screen.getByText("No active program")).toBeDefined();
+  });
+
+  it("renders the program with the trainer's exact prescription", () => {
     const program = makeProgram();
-    vi.mocked(fetchClientProgramsForClient).mockResolvedValue([program]);
-    mockProgramsStore.clientPrograms = [program];
+    hookState.activeProgram = program;
+    hookState.next = nextFor(program);
 
     render(<ProgramPage />);
 
-    await waitFor(() => {
-      expect(screen.getByText("Hypertrophy Block 1")).toBeDefined();
-    });
-
-    expect(screen.getByText("fixed")).toBeDefined();
-    expect(screen.getByText(/Day 1.*Push/)).toBeDefined();
-    expect(screen.getByText("Main Lifts")).toBeDefined();
+    expect(screen.getByText("Hypertrophy Block 1")).toBeDefined();
+    // Up Next resolved to Push
+    expect(screen.getByText("Start Push")).toBeDefined();
+    expect(screen.getByText("2 left this week")).toBeDefined();
+    // The prescribed numbers the client trains to
     expect(screen.getByText("Bench Press")).toBeDefined();
     expect(screen.getByText("4 × 6-8")).toBeDefined();
     expect(screen.getByText("120s")).toBeDefined();
   });
 
-  it("shows empty state when no program is assigned", async () => {
-    vi.mocked(fetchClientProgramsForClient).mockResolvedValue([]);
+  it("shows 'Message trainer' when the program is trainer-assigned (not self)", () => {
+    const program = makeProgram({ trainerId: "trainer-1" });
+    hookState.activeProgram = program;
+    hookState.next = nextFor(program);
 
     render(<ProgramPage />);
 
-    await waitFor(() => {
-      expect(screen.getByText("No program assigned yet")).toBeDefined();
-    });
+    expect(screen.getByText(/Message/)).toBeDefined();
+    expect(screen.queryByText("Edit")).toBeNull();
+  });
+
+  it("shows 'Edit' (and no message button) when the program is self-authored", () => {
+    const program = makeProgram({ trainerId: "client-1" });
+    hookState.activeProgram = program;
+    hookState.next = nextFor(program);
+
+    render(<ProgramPage />);
+
+    expect(screen.getByText("Edit")).toBeDefined();
+    expect(screen.queryByText(/Message/)).toBeNull();
   });
 });

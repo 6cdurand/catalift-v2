@@ -20,6 +20,15 @@ export {
   type NextWorkoutResult,
 } from "./lib/get-next-workout";
 
+export { deriveCompletedDayIndices } from "./lib/derive-completed-days";
+
+// w3 — client program page (the recipient half of the parity law).
+export { ClientProgramPage } from "./client/ClientProgramPage";
+export {
+  useActiveClientProgram,
+  type UseActiveClientProgramResult,
+} from "./client/useActiveClientProgram";
+
 export { useProgramsStore, type ProgramsState } from "./store";
 
 export { saveProgramTemplate } from "./api/save-template";
