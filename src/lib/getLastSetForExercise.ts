@@ -252,6 +252,7 @@ export function getBestExerciseRecord(
       // strengthRating.calculate1RM null-clamp and personal_bests storage).
       if (s.reps > 20) continue;
       const rm = calculate1RM(s.weight, s.reps);
+      if (rm === null) continue; // >20 / invalid — does not win "best set"
       if (
         !best ||
         rm > best.oneRepMax ||

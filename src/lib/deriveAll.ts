@@ -13,7 +13,7 @@
 
 import { Workout, PersonalBest } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
-import { isAssistedExercise, getSetVolume, getUserBodyweight } from './exercises';
+import { isAssistedExercise, getSetVolume, getUserBodyweight, calculate1RM } from './exercises';
 
 // ============ TYPES ============
 
@@ -34,16 +34,9 @@ export interface DeriveResult {
   strengthRatingUpdated: boolean;
 }
 
-// ============ 1RM CALCULATION ============
-
-function calculate1RM(weight: number, reps: number): number | null {
-  if (reps <= 0 || weight <= 0) return null;
-  if (reps > 20) return null;
-  if (reps === 1) return weight;
-  return Math.round(weight * (1 + reps / 30) * 10) / 10;
-}
-
 // ============ PB RECOMPUTATION ============
+// 1RM uses the single canonical calculate1RM imported from './exercises'
+// (BUG-302: no local copy — badge and stored PB now agree exactly).
 
 export function recomputePBs(
   workouts: Workout[],
