@@ -171,7 +171,7 @@ export default function SettingsPage() {
         {/* Profile Settings */}
         <Card className="bg-white border-gray-200 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-gray-900 flex items-center gap-2">
+            <CardTitle className="text-gray-900 flex items-center gap-2" data-testid="settings-section-profile">
               <User className="w-5 h-5 text-sky-400" />
               Profile
             </CardTitle>

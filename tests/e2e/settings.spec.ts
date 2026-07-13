@@ -12,7 +12,7 @@ test.describe("Settings page", () => {
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
 
     // Profile section
-    await expect(page.getByText("Profile", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("settings-section-profile")).toBeVisible();
     await expect(page.getByPlaceholder("Your display name")).toBeVisible();
 
     // Connected Services
