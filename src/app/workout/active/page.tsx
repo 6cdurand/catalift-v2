@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Heart, Layers, Repeat } from 'lucide-react';
+import { Plus, Heart, Layers, Repeat, Pause, Play } from 'lucide-react';
 import { exerciseLibrary, allExercises } from '@/lib/exercises';
 import {
   createAndPersistCustomExercise,
@@ -528,6 +528,7 @@ export default function ActiveWorkoutPage() {
     workoutTimerSeconds,
     timerRunning,
     tickTimer,
+    restTimer,
     startWorkout,
     addExercise,
     removeExercise,
@@ -544,6 +545,11 @@ export default function ActiveWorkoutPage() {
     updateCardio,
     finishWorkout,
     setPreviousBests,
+    startRestTimer,
+    tickRestTimer,
+    resetRestTimer,
+    pauseWorkoutTimer,
+    resumeWorkoutTimer,
   } = useActiveWorkoutStore();
 
   const [showAddExercise, setShowAddExercise] = useState(false);
@@ -555,6 +561,8 @@ export default function ActiveWorkoutPage() {
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
   // Cached workout history (blocks) — feeds the Previous column + finish-time PB detection.
   const historyRef = useRef<WorkoutHistoryBlocks[]>([]);
+  // B1: Per-set rest timers (ported from v1 active/page.tsx:408)
+  const [setRestTimers, setSetRestTimers] = useState<Record<string, { remaining: number; total: number }>>({});
 
   // Real session (BUG-014 fix)
   const { user, loading } = useSession();
@@ -597,6 +605,36 @@ export default function ActiveWorkoutPage() {
     return () => clearInterval(interval);
   }, [timerRunning, tickTimer]);
 
+  // B1: Rest timer tick (ported from v1 active/page.tsx:835-840)
+  useEffect(() => {
+    if (!restTimer.isRunning) return;
+    const interval = setInterval(tickRestTimer, 1000);
+    return () => clearInterval(interval);
+  }, [restTimer.isRunning, tickRestTimer]);
+
+  // B1: Per-set rest timers tick (ported from v1 active/page.tsx:863-884)
+  useEffect(() => {
+    const hasActiveTimers = Object.values(setRestTimers).some((t) => t.remaining > 0);
+    if (!hasActiveTimers) return;
+
+    const interval = setInterval(() => {
+      setSetRestTimers((prev) => {
+        const updated: Record<string, { remaining: number; total: number }> = {};
+        for (const [setId, timer] of Object.entries(prev)) {
+          if (timer.remaining > 0) {
+            updated[setId] = { ...timer, remaining: timer.remaining - 1 };
+          } else {
+            // Keep timer at 0 so it shows red "done" state
+            updated[setId] = { ...timer, remaining: 0 };
+          }
+        }
+        return updated;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [setRestTimers]);
+
   // Load workout history (blocks) once the session is known. Seeds the Previous
   // column (tap-to-fill) via the store, and is reused for finish-time PB
   // detection. Read-only, RLS-scoped; best-effort (Previous simply stays blank
@@ -634,6 +672,16 @@ export default function ActiveWorkoutPage() {
     );
   }
 
+  // B1: Wrap completeSet to start per-set rest timer (ported from v1)
+  const handleCompleteSet = (entryId: string, setId: string) => {
+    completeSet(entryId, setId);
+    // Start a 90-second rest timer for this set (v1 default: 90s)
+    setSetRestTimers((prev) => ({
+      ...prev,
+      [setId]: { remaining: 90, total: 90 },
+    }));
+  };
+
   const handleFinish = async () => {
     if (isFinishing) return;
     const durationSnapshot = workoutTimerSeconds;
@@ -664,7 +712,7 @@ export default function ActiveWorkoutPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header: workout name + timer + finish button */}
+      {/* Header: workout name + timer + pause + finish button (B1: added pause) */}
       <div className="sticky top-0 bg-white border-b border-gray-100 z-10">
         <div className="flex items-center justify-between px-4 py-3">
           <div>
@@ -673,13 +721,25 @@ export default function ActiveWorkoutPage() {
             </p>
             <p className="text-xs text-gray-500">{formatTime(workoutTimerSeconds)}</p>
           </div>
-          <Button
-            onClick={handleFinish}
-            disabled={isFinishing}
-            className="bg-sky-500 text-white"
-          >
-            {isFinishing ? 'Saving...' : 'Finish'}
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* B1: Pause/Resume button (ported from v1) */}
+            <Button
+              onClick={() => (timerRunning ? pauseWorkoutTimer() : resumeWorkoutTimer())}
+              variant="ghost"
+              size="icon"
+              className="text-gray-500 hover:text-gray-700"
+              title={timerRunning ? 'Pause workout' : 'Resume workout'}
+            >
+              {timerRunning ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+            </Button>
+            <Button
+              onClick={handleFinish}
+              disabled={isFinishing}
+              className="bg-sky-500 text-white"
+            >
+              {isFinishing ? 'Saving...' : 'Finish'}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -693,7 +753,7 @@ export default function ActiveWorkoutPage() {
                 entry={block.exercise}
                 onAddSet={addSet}
                 onUpdateSet={updateSet}
-                onCompleteSet={completeSet}
+                onCompleteSet={handleCompleteSet}
                 onUncompleteSet={uncompleteSet}
                 onRemoveSet={removeSet}
                 onRemoveExercise={removeExercise}
@@ -717,7 +777,7 @@ export default function ActiveWorkoutPage() {
                 block={block}
                 onAddSet={addSet}
                 onUpdateSet={updateSet}
-                onCompleteSet={completeSet}
+                onCompleteSet={handleCompleteSet}
                 onUncompleteSet={uncompleteSet}
                 onRemoveSet={removeSet}
                 onRemoveExercise={removeExercise}
@@ -732,7 +792,7 @@ export default function ActiveWorkoutPage() {
                 block={block}
                 onAddSet={addSet}
                 onUpdateSet={updateSet}
-                onCompleteSet={completeSet}
+                onCompleteSet={handleCompleteSet}
                 onUncompleteSet={uncompleteSet}
                 onRemoveSet={removeSet}
                 onRemoveExercise={removeExercise}
