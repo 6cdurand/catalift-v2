@@ -20,13 +20,6 @@ import {
   buildDataExportMailto,
 } from './helpers';
 
-export {
-  PRIVACY_SETTINGS_ROUTE,
-  DATA_EXPORT_EMAIL,
-  CHANGE_PASSWORD_COOLDOWN_MS,
-  buildPasswordRecoveryRequestBody,
-  buildDataExportMailto,
-} from './helpers';
 
 export default function PrivacySettingsPage() {
   return (

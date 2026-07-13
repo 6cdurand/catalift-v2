@@ -29,7 +29,7 @@ import {
   Plus,
   X,
 } from 'lucide-react';
-import { PRIVACY_SETTINGS_ROUTE } from './privacy/page';
+import { PRIVACY_SETTINGS_ROUTE } from './privacy/helpers';
 import { toast } from 'sonner';
 import type { WeightUnit } from '@/types';
 import { useSession, useUserRole, logout as authLogout, upsertProfile } from '@/features/auth';
