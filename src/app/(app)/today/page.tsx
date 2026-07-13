@@ -1,9 +1,24 @@
 "use client";
 
-import { useMemo } from "react";
+// /today — the rich home surface (F2). COMPOSITION, not a from-scratch port: it
+// wires the v2 data seams (session + active client program + scheduled sessions +
+// workout-history stats) into the presentational <TodaySurface />, which reuses
+// the w3 client-program components.
+//
+// Parity law (BUG-001/010): "Up Next" / next-day come ONLY from
+// getNextProgramWorkout via useActiveClientProgram. This file contains NO
+// day-index / rotation / weekday / next-index logic (see parity-guard test).
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layouts/MainLayout";
+import { useSession } from "@/features/auth";
 import { useScheduledSessions } from "@/features/calendar";
-import type { ScheduledSession } from "@/features/calendar";
+import { useActiveClientProgram } from "@/features/programs";
+import { PreviewDayDialog } from "@/features/programs/client/dialogs/PreviewDayDialog";
+import { SwapDayDialog } from "@/features/programs/client/dialogs/SwapDayDialog";
+import { TodaySurface } from "./TodaySurface";
+import { useTodayStats } from "./useTodayStats";
 
 function formatTodayLabel(today: string): string {
   const d = new Date(today + "T00:00:00");
@@ -14,33 +29,10 @@ function formatTodayLabel(today: string): string {
   });
 }
 
-function SessionCard({ session }: { session: ScheduledSession }) {
-  const statusColor: Record<string, string> = {
-    done: "border-green-200 bg-green-50 text-green-700",
-    upcoming: "border-blue-200 bg-blue-50 text-blue-700",
-    missed: "border-red-200 bg-red-50 text-red-600",
-    rest: "border-gray-200 bg-gray-50 text-gray-500",
-  };
-
-  return (
-    <div
-      className={`rounded-lg border p-4 ${statusColor[session.status] ?? ""}`}
-    >
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="font-medium">{session.label}</p>
-          <p className="text-xs capitalize text-muted-foreground">
-            {session.kind.replace("-", " ")}
-            {session.sessionType ? ` · ${session.sessionType}` : ""}
-          </p>
-        </div>
-        <span className="text-xs font-medium uppercase">{session.status}</span>
-      </div>
-    </div>
-  );
-}
-
 export default function TodayPage() {
+  const router = useRouter();
+  const { user, loading: sessionLoading } = useSession();
+
   const rangeStart = useMemo(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -50,6 +42,26 @@ export default function TodayPage() {
     rangeStart,
     rangeEnd: rangeStart,
   });
+
+  const { activeProgram, next, completedDayIndices } = useActiveClientProgram(
+    user?.id,
+    sessionLoading,
+  );
+
+  const { stats } = useTodayStats(user?.id, sessionLoading);
+
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [swapOpen, setSwapOpen] = useState(false);
+
+  // Same start flow the UpNextCard / ClientProgramPage use (Box 1).
+  const handleStart = () => {
+    router.push("/workout/active");
+  };
+
+  const openPreview = (dayIndex: number) => {
+    setSwapOpen(false);
+    setPreviewIndex(dayIndex);
+  };
 
   return (
     <div>
@@ -63,20 +75,44 @@ export default function TodayPage() {
             Could not load sessions: {error.message}
           </p>
         )}
-        {!isLoading && !error && todaySessions.length === 0 && (
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center">
-            <p className="text-sm font-medium text-gray-600">Rest Day</p>
-            <p className="mt-1 text-xs text-gray-400">
-              No training scheduled for today. Enjoy the recovery!
-            </p>
-          </div>
+        {!isLoading && !error && (
+          <TodaySurface
+            activeProgram={activeProgram}
+            next={next}
+            completedDayIndices={completedDayIndices}
+            stats={stats}
+            todaySessions={todaySessions}
+            onStartWorkout={handleStart}
+            onPreview={openPreview}
+            onSwap={() => setSwapOpen(true)}
+            onViewHistory={() => router.push("/workout/history")}
+          />
         )}
-        {!isLoading && !error && todaySessions.length > 0 && (
-          <div className="space-y-3">
-            {todaySessions.map((session, i) => (
-              <SessionCard key={`${session.date}-${i}`} session={session} />
-            ))}
-          </div>
+
+        {activeProgram && (
+          <>
+            <PreviewDayDialog
+              open={previewIndex !== null}
+              day={
+                previewIndex !== null
+                  ? activeProgram.weeklyPlan[previewIndex] ?? null
+                  : null
+              }
+              dayIndex={previewIndex ?? 0}
+              programName={activeProgram.name}
+              onOpenChange={(open) => !open && setPreviewIndex(null)}
+            />
+
+            <SwapDayDialog
+              open={swapOpen}
+              program={activeProgram}
+              completedDayIndices={completedDayIndices}
+              nextDayIndex={next?.dayIndex ?? 0}
+              onOpenChange={setSwapOpen}
+              onStart={handleStart}
+              onPreview={openPreview}
+            />
+          </>
         )}
       </div>
     </div>
