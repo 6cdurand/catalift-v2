@@ -48,6 +48,8 @@ import {
 } from '@/features/workout-engine/api/fetch-history';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
 import { detectNewPRs, buildPreviousBests } from '@/features/workout-engine/lib/history-stats';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import { upsertPersonalBests } from '@/features/workout-engine/api/upsert-personal-bests';
 import { getExerciseAnimationUrl } from '@/lib/exerciseAnimations';
 
 // Small exercise-picker thumbnail (v1 fidelity). Fallback = no image box, just the
@@ -646,6 +648,14 @@ export default function ActiveWorkoutPage() {
       );
       const data = computeSummaryData(completed, durationSnapshot, { pbs });
       setSummaryData(data);
+
+      // F1: Persist personal bests (fire-and-forget, don't block summary UI)
+      void upsertPersonalBests(
+        { id: completed.id, userId: completed.userId, performedAt: completed.performedAt, blocks: completed.blocks },
+        historyRef.current,
+      ).catch((err) => {
+        console.error('[F1] failed to upsert personal bests:', err);
+      });
     } else {
       setShowSummary(false);
       alert('Could not save workout. Please try again.');

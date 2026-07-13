@@ -95,7 +95,9 @@ export function detectNewPRs(
     .filter((pb) => pb.workoutId === completed.id && pb.bestWeight > 0)
     .map((pb) => {
       const name = nameByNorm.get(pb.exerciseId) ?? pb.exerciseId;
-      return `${name} · ${pb.bestWeight}kg × ${pb.bestReps}`;
+      // F1: Include e1RM in badge (matches /pbs display)
+      const e1rm = pb.oneRepMax ? ` (${Math.round(pb.oneRepMax)}kg e1RM)` : '';
+      return `${name} · ${pb.bestWeight}kg × ${pb.bestReps}${e1rm}`;
     });
 }
 
