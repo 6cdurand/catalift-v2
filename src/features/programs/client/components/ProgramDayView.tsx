@@ -32,6 +32,12 @@ function ExerciseRow({ exercise }: { exercise: ProgramExercise }) {
         </span>
         <span className="text-gray-300">|</span>
         <span>{exercise.rest}</span>
+        {exercise.tempo && (
+          <>
+            <span className="text-gray-300">|</span>
+            <span className="tabular-nums">{exercise.tempo}</span>
+          </>
+        )}
       </div>
     </div>
   );
