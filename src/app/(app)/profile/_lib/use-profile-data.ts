@@ -10,6 +10,7 @@ import {
   userScopedKey,
 } from "@/lib/storage";
 import { useSession, useUserRole, logout as authLogout } from "@/features/auth";
+import { useViewModeStore } from "@/hooks/use-view-mode";
 import {
   fetchWorkoutHistory,
   fetchWorkoutHistoryWithBlocks,
@@ -66,13 +67,9 @@ export function useProfileData(): ProfileData {
   const [roster, setRoster] = useState<RosterClient[]>([]);
   const [gyms, setGyms] = useState<GymEntry[]>([]);
   const [gymName, setGymNameState] = useState<string | undefined>(undefined);
-  // Local view-mode override. `null` = follow the server-governed role. Only a
-  // trainer's explicit toggle sets it (previewing athlete view) — this never
-  // writes to `public.users.role`, so it cannot self-promote a client (G-20).
-  const [viewOverride, setViewOverride] = useState<"user" | "trainer" | null>(
-    null,
-  );
   const [dataLoading, setDataLoading] = useState(true);
+
+  const viewOverride = useViewModeStore((s) => s.viewOverride);
 
   const userId = sessionUser?.id;
 
@@ -132,9 +129,7 @@ export function useProfileData(): ProfileData {
     };
   }, [userId, role, roleLoading]);
 
-  const setViewMode = useCallback((mode: "user" | "trainer") => {
-    setViewOverride(mode);
-  }, []);
+  const setViewMode = useViewModeStore((s) => s.setViewMode);
 
   const setGym = useCallback(
     (name: string | null) => {
@@ -205,6 +200,7 @@ export function useProfileData(): ProfileData {
       gymName,
     } as User;
   }, [sessionUser, profileRow, viewMode, role, gymName]);
+  // viewOverride comes from the shared store so MainLayout sees the same toggle.
 
   return {
     loading: sessionLoading || roleLoading || dataLoading,

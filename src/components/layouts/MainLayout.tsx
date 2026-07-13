@@ -4,7 +4,8 @@ import React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Dumbbell, Newspaper, Users, UserCircle, CalendarDays, GraduationCap, Mail, Hammer, Play, Bell } from 'lucide-react';
-import { useAuthStore, useWorkoutStore, useSocialStore, useMessageStore } from './_shell-stubs';
+import { useAuthUser } from '@/hooks/use-auth-user';
+import { useActiveWorkoutBanner } from '@/hooks/use-active-workout';
 
 interface NavItem { icon: React.ElementType; label: string; href: string; }
 
@@ -26,8 +27,8 @@ const trainerNavItems: NavItem[] = [
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAuthenticated } = useAuthStore();
-  const { activeWorkout } = useWorkoutStore();
+  const { user, isAuthenticated } = useAuthUser();
+  const activeWorkout = useActiveWorkoutBanner();
 
   const isTrainerMode = user?.mode === 'trainer';
   const isOnActivePage = pathname === '/workout/active';
@@ -53,8 +54,8 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center animate-pulse"><Dumbbell className="w-4 h-4 text-white" /></div>
                 <div>
-                  <p className="text-sm font-bold text-white">{activeWorkout.name || 'Workout in Progress'}</p>
-                  <p className="text-[11px] text-white/70">{activeWorkout.exercises?.length || 0} exercises • Tap to continue</p>
+                  <p className="text-sm font-bold text-white">{activeWorkout.name}</p>
+                  <p className="text-[11px] text-white/70">{activeWorkout.exerciseCount} exercises • Tap to continue</p>
                 </div>
               </div>
               <Play className="w-5 h-5 text-white" />
@@ -88,7 +89,7 @@ export function PageHeader({ title, subtitle, action, showBack = false, onBack }
   title: string; subtitle?: string; action?: React.ReactNode; showBack?: boolean; onBack?: () => void;
 }) {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { user } = useAuthUser();
   const isTrainerMode = user?.mode === 'trainer';
   const userBgImage = 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&h=300&fit=crop&crop=center';
   const trainerBgImage = 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&h=300&fit=crop&crop=center';
@@ -121,9 +122,9 @@ export function PageHeader({ title, subtitle, action, showBack = false, onBack }
 
 function NotifBellButton() {
   const router = useRouter();
-  const { user } = useAuthStore();
-  const { getUnreadCount } = useSocialStore();
-  const unread = user ? getUnreadCount() : 0;
+  const { user } = useAuthUser();
+  void user;
+  const unread = 0;
   return (
     <button onClick={() => router.push('/notifications')} className="relative p-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition-all duration-200 backdrop-blur-sm" aria-label="Notifications">
       <Bell className="w-5 h-5 text-white" />
@@ -134,9 +135,9 @@ function NotifBellButton() {
 
 function MessageButton() {
   const router = useRouter();
-  const { user } = useAuthStore();
-  const { getUnreadCount } = useMessageStore();
-  const unread = user ? getUnreadCount(user.id) : 0;
+  const { user } = useAuthUser();
+  void user;
+  const unread = 0;
   return (
     <button onClick={() => router.push('/messages')} className="relative p-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition-all duration-200 backdrop-blur-sm" aria-label="Messages">
       <Mail className="w-5 h-5 text-white" />
