@@ -52,6 +52,12 @@ function mapEntry(
 /** Last logged weight×reps per exerciseId, derived from Supabase history (read-only). */
 export type PreviousBestMap = Record<string, { weight: number | null; reps: number | null }>;
 
+/** B1: Rest timer state (ported from v1) */
+interface RestTimerState {
+  isRunning: boolean;
+  seconds: number;
+}
+
 interface ActiveWorkoutState {
   activeWorkout: LoggedWorkout | null;
   workoutTimerSeconds: number;
@@ -61,6 +67,8 @@ interface ActiveWorkoutState {
   // Previous-set display (Wave: workout-fidelity). Seeded from fetch-history on the
   // active page; NOT persisted (see partialize) so it never leaks across accounts.
   previousByExerciseId: PreviousBestMap;
+  // B1: Rest timer (ported from v1)
+  restTimer: RestTimerState;
 
   // Lifecycle
   startWorkout: (params: { userId: string; name?: string }) => void;
@@ -96,6 +104,12 @@ interface ActiveWorkoutState {
   // Timer
   tickTimer: () => void;
   toggleTimer: () => void;
+  // B1: Rest timer + pause (ported from v1)
+  startRestTimer: (seconds: number) => void;
+  tickRestTimer: () => void;
+  resetRestTimer: () => void;
+  pauseWorkoutTimer: () => void;
+  resumeWorkoutTimer: () => void;
 
   // Hydration
   setHasHydrated: (v: boolean) => void;
@@ -110,6 +124,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
       isFinishing: false,
       hasHydrated: false,
       previousByExerciseId: {},
+      restTimer: { isRunning: false, seconds: 0 }, // B1
 
       setPreviousBests: (map) => set({ previousByExerciseId: map }),
 
@@ -446,6 +461,33 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         set((state) => ({ timerRunning: !state.timerRunning }));
       },
 
+      // B1: Rest timer + pause (ported from v1 workoutStore.ts)
+      startRestTimer: (seconds: number) => {
+        set({ restTimer: { isRunning: true, seconds } });
+      },
+
+      tickRestTimer: () => {
+        const { restTimer } = get();
+        if (!restTimer.isRunning) return;
+        if (restTimer.seconds <= 1) {
+          set({ restTimer: { isRunning: false, seconds: 0 } });
+        } else {
+          set({ restTimer: { ...restTimer, seconds: restTimer.seconds - 1 } });
+        }
+      },
+
+      resetRestTimer: () => {
+        set({ restTimer: { isRunning: false, seconds: 0 } });
+      },
+
+      pauseWorkoutTimer: () => {
+        set({ timerRunning: false });
+      },
+
+      resumeWorkoutTimer: () => {
+        set({ timerRunning: true });
+      },
+
       setHasHydrated: (v) => set({ hasHydrated: v }),
     }),
     {
@@ -475,6 +517,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         activeWorkout: state.activeWorkout,
         workoutTimerSeconds: state.workoutTimerSeconds,
         timerRunning: state.timerRunning,
+        restTimer: state.restTimer, // B1: persist rest timer
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
