@@ -11,29 +11,66 @@
 import { describe, it, expect } from 'vitest';
 import { calculate1RM } from '@/lib/exercises';
 import { recalculateAllPBs, normalizeExerciseId } from '@/lib/exerciseStats';
+import type { Workout, WorkoutExercise, Exercise, WorkoutSet } from '@/types';
+
+// Minimal test fixture builder for Workout type
+function createTestWorkout(
+  id: string,
+  userId: string,
+  exercises: Array<{
+    exerciseId: string;
+    exercise: { name: string };
+    sets: Array<{ completed: boolean; weight: number; reps: number }>;
+  }>,
+): Workout {
+  return {
+    id,
+    userId,
+    name: 'Test Workout',
+    totalVolume: exercises.reduce(
+      (sum, ex) =>
+        sum +
+        ex.sets.reduce(
+          (exSum, s) => exSum + (s.completed ? (s.weight || 0) * (s.reps || 0) : 0),
+          0,
+        ),
+      0,
+    ),
+    status: 'completed',
+    startTime: new Date().toISOString(),
+    endTime: new Date().toISOString(),
+    exercises: exercises.map(
+      (ex, idx): WorkoutExercise => ({
+        id: `ex-${idx}`,
+        exerciseId: ex.exerciseId,
+        exercise: { id: ex.exerciseId, name: ex.exercise.name } as Exercise,
+        sets: ex.sets.map(
+          (s, sIdx): WorkoutSet => ({
+            id: `set-${idx}-${sIdx}`,
+            setNumber: sIdx + 1,
+            type: 'normal',
+            weight: s.weight,
+            reps: s.reps,
+            completed: s.completed,
+          }),
+        ),
+        restTimerSeconds: 90,
+      }),
+    ),
+  };
+}
 
 describe('PBs persistence accuracy gate', () => {
   const USER_ID = 'user-test';
 
   it('low-rep set (100kg×5) produces upsert row with one_rm = calculate1RM(100,5) = 113kg', () => {
-    const workout = {
-      id: 'w1',
-      userId: USER_ID,
-      name: 'Test',
-      totalVolume: 500,
-      status: 'completed' as const,
-      startTime: '2024-01-01T10:00:00Z',
-      endTime: '2024-01-01T10:30:00Z',
-      exercises: [
-        {
-          exerciseId: 'bench-press',
-          exercise: { name: 'Bench Press' },
-          sets: [
-            { completed: true, weight: 100, reps: 5 },
-          ],
-        },
-      ],
-    } as any;
+    const workout = createTestWorkout('w1', USER_ID, [
+      {
+        exerciseId: 'bench-press',
+        exercise: { name: 'Bench Press' },
+        sets: [{ completed: true, weight: 100, reps: 5 }],
+      },
+    ]);
 
     const pbs = recalculateAllPBs([workout], USER_ID);
 
@@ -47,43 +84,21 @@ describe('PBs persistence accuracy gate', () => {
   });
 
   it('subsequent WORSE session does NOT lower stored PB (no regression)', () => {
-    const workout1 = {
-      id: 'w1',
-      userId: USER_ID,
-      name: 'Test 1',
-      totalVolume: 700,
-      status: 'completed' as const,
-      startTime: '2024-01-01T10:00:00Z',
-      endTime: '2024-01-01T10:30:00Z',
-      exercises: [
-        {
-          exerciseId: 'squat',
-          exercise: { name: 'Squat' },
-          sets: [
-            { completed: true, weight: 140, reps: 5 }, // e1RM = 158
-          ],
-        },
-      ],
-    } as any;
+    const workout1 = createTestWorkout('w1', USER_ID, [
+      {
+        exerciseId: 'squat',
+        exercise: { name: 'Squat' },
+        sets: [{ completed: true, weight: 140, reps: 5 }], // e1RM = 158
+      },
+    ]);
 
-    const workout2 = {
-      id: 'w2',
-      userId: USER_ID,
-      name: 'Test 2',
-      totalVolume: 600,
-      status: 'completed' as const,
-      startTime: '2024-01-02T10:00:00Z',
-      endTime: '2024-01-02T10:30:00Z',
-      exercises: [
-        {
-          exerciseId: 'squat',
-          exercise: { name: 'Squat' },
-          sets: [
-            { completed: true, weight: 120, reps: 5 }, // e1RM = 136 (worse)
-          ],
-        },
-      ],
-    } as any;
+    const workout2 = createTestWorkout('w2', USER_ID, [
+      {
+        exerciseId: 'squat',
+        exercise: { name: 'Squat' },
+        sets: [{ completed: true, weight: 120, reps: 5 }], // e1RM = 136 (worse)
+      },
+    ]);
 
     const pbs = recalculateAllPBs([workout1, workout2], USER_ID);
 
@@ -96,43 +111,21 @@ describe('PBs persistence accuracy gate', () => {
   });
 
   it('subsequent BETTER session raises PB', () => {
-    const workout1 = {
-      id: 'w1',
-      userId: USER_ID,
-      name: 'Test 1',
-      totalVolume: 750,
-      status: 'completed' as const,
-      startTime: '2024-01-01T10:00:00Z',
-      endTime: '2024-01-01T10:30:00Z',
-      exercises: [
-        {
-          exerciseId: 'deadlift',
-          exercise: { name: 'Deadlift' },
-          sets: [
-            { completed: true, weight: 150, reps: 5 }, // e1RM = 170
-          ],
-        },
-      ],
-    } as any;
+    const workout1 = createTestWorkout('w1', USER_ID, [
+      {
+        exerciseId: 'deadlift',
+        exercise: { name: 'Deadlift' },
+        sets: [{ completed: true, weight: 150, reps: 5 }], // e1RM = 170
+      },
+    ]);
 
-    const workout2 = {
-      id: 'w2',
-      userId: USER_ID,
-      name: 'Test 2',
-      totalVolume: 800,
-      status: 'completed' as const,
-      startTime: '2024-01-02T10:00:00Z',
-      endTime: '2024-01-02T10:30:00Z',
-      exercises: [
-        {
-          exerciseId: 'deadlift',
-          exercise: { name: 'Deadlift' },
-          sets: [
-            { completed: true, weight: 160, reps: 5 }, // e1RM = 180 (better)
-          ],
-        },
-      ],
-    } as any;
+    const workout2 = createTestWorkout('w2', USER_ID, [
+      {
+        exerciseId: 'deadlift',
+        exercise: { name: 'Deadlift' },
+        sets: [{ completed: true, weight: 160, reps: 5 }], // e1RM = 180 (better)
+      },
+    ]);
 
     const pbs = recalculateAllPBs([workout1, workout2], USER_ID);
 
@@ -145,24 +138,13 @@ describe('PBs persistence accuracy gate', () => {
   });
 
   it('>20-rep set yields one_rm = null (excluded) and creates no phantom PB', () => {
-    const workout = {
-      id: 'w1',
-      userId: USER_ID,
-      name: 'Test',
-      totalVolume: 0,
-      status: 'completed' as const,
-      startTime: '2024-01-01T10:00:00Z',
-      endTime: '2024-01-01T10:30:00Z',
-      exercises: [
-        {
-          exerciseId: 'pushups',
-          exercise: { name: 'Pushups' },
-          sets: [
-            { completed: true, weight: 0, reps: 25 }, // >20 reps, excluded
-          ],
-        },
-      ],
-    } as any;
+    const workout = createTestWorkout('w1', USER_ID, [
+      {
+        exerciseId: 'pushups',
+        exercise: { name: 'Pushups' },
+        sets: [{ completed: true, weight: 0, reps: 25 }], // >20 reps, excluded
+      },
+    ]);
 
     const pbs = recalculateAllPBs([workout], USER_ID);
 
@@ -180,62 +162,36 @@ describe('PBs persistence accuracy gate', () => {
 
     // Verify the badge format includes e1RM
     // (detectNewPRs is tested indirectly via integration; here we verify the calc is canonical)
-    const workout = {
-      id: 'w1',
-      userId: USER_ID,
-      name: 'Test',
-      totalVolume: 500,
-      status: 'completed' as const,
-      startTime: '2024-01-01T10:00:00Z',
-      endTime: '2024-01-01T10:30:00Z',
-      exercises: [
-        {
-          exerciseId: 'bench-press',
-          exercise: { name: 'Bench Press' },
-          sets: [
-            { completed: true, weight, reps },
-          ],
-        },
-      ],
-    } as any;
+    const workout = createTestWorkout('w1', USER_ID, [
+      {
+        exerciseId: 'bench-press',
+        exercise: { name: 'Bench Press' },
+        sets: [{ completed: true, weight, reps }],
+      },
+    ]);
 
     const pbs = recalculateAllPBs([workout], USER_ID);
     expect(pbs[0].oneRepMax).toBe(expectedE1RM);
   });
 
   it('multiple exercises in same workout each get their own PB', () => {
-    const workout = {
-      id: 'w1',
-      userId: USER_ID,
-      name: 'Test',
-      totalVolume: 1600,
-      status: 'completed' as const,
-      startTime: '2024-01-01T10:00:00Z',
-      endTime: '2024-01-01T10:30:00Z',
-      exercises: [
-        {
-          exerciseId: 'bench-press',
-          exercise: { name: 'Bench Press' },
-          sets: [
-            { completed: true, weight: 100, reps: 5 },
-          ],
-        },
-        {
-          exerciseId: 'squat',
-          exercise: { name: 'Squat' },
-          sets: [
-            { completed: true, weight: 140, reps: 5 },
-          ],
-        },
-        {
-          exerciseId: 'deadlift',
-          exercise: { name: 'Deadlift' },
-          sets: [
-            { completed: true, weight: 160, reps: 4 },
-          ],
-        },
-      ],
-    } as any;
+    const workout = createTestWorkout('w1', USER_ID, [
+      {
+        exerciseId: 'bench-press',
+        exercise: { name: 'Bench Press' },
+        sets: [{ completed: true, weight: 100, reps: 5 }],
+      },
+      {
+        exerciseId: 'squat',
+        exercise: { name: 'Squat' },
+        sets: [{ completed: true, weight: 140, reps: 5 }],
+      },
+      {
+        exerciseId: 'deadlift',
+        exercise: { name: 'Deadlift' },
+        sets: [{ completed: true, weight: 160, reps: 4 }],
+      },
+    ]);
 
     const pbs = recalculateAllPBs([workout], USER_ID);
 
@@ -248,25 +204,16 @@ describe('PBs persistence accuracy gate', () => {
   });
 
   it('only completed sets count toward PB', () => {
-    const workout = {
-      id: 'w1',
-      userId: USER_ID,
-      name: 'Test',
-      totalVolume: 500,
-      status: 'completed' as const,
-      startTime: '2024-01-01T10:00:00Z',
-      endTime: '2024-01-01T10:30:00Z',
-      exercises: [
-        {
-          exerciseId: 'bench-press',
-          exercise: { name: 'Bench Press' },
-          sets: [
-            { completed: false, weight: 200, reps: 1 }, // Not completed, ignored
-            { completed: true, weight: 100, reps: 5 },  // Completed, counts
-          ],
-        },
-      ],
-    } as any;
+    const workout = createTestWorkout('w1', USER_ID, [
+      {
+        exerciseId: 'bench-press',
+        exercise: { name: 'Bench Press' },
+        sets: [
+          { completed: false, weight: 200, reps: 1 }, // Not completed, ignored
+          { completed: true, weight: 100, reps: 5 }, // Completed, counts
+        ],
+      },
+    ]);
 
     const pbs = recalculateAllPBs([workout], USER_ID);
 

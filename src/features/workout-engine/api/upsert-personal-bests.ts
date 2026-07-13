@@ -10,8 +10,8 @@
 import { persist as dataSyncPersist } from '@/features/data-sync/lib/write';
 import { getBrowserClient } from '@/lib/supabase';
 import { recalculateAllPBs, normalizeExerciseId } from '@/lib/exerciseStats';
-import { calculate1RM } from '@/lib/exercises';
 import type { Database } from '@/types/database';
+import type { Workout, WorkoutExercise, Exercise, WorkoutSet } from '@/types';
 import type { WorkoutHistoryBlocks } from './fetch-history';
 import type { WorkoutBlock } from '../types';
 
@@ -65,17 +65,19 @@ export async function upsertPersonalBests(
   const completedExerciseIds = new Set(exerciseNames.keys());
 
   // Convert history + completed to stats format for recalculateAllPBs
-  const statsWorkouts = [
-    ...history.map((h) => ({
-      id: h.id,
-      userId: completed.userId,
-      name: 'History',
-      totalVolume: 0,
-      status: 'completed' as const,
-      startTime: h.performedAt,
-      endTime: h.performedAt,
-      exercises: extractExercisesFromBlocks(h.blocks),
-    })),
+  const statsWorkouts: Workout[] = [
+    ...history.map(
+      (h): Workout => ({
+        id: h.id,
+        userId: completed.userId,
+        name: 'History',
+        totalVolume: 0,
+        status: 'completed' as const,
+        startTime: h.performedAt,
+        endTime: h.performedAt,
+        exercises: extractExercisesFromBlocks(h.blocks),
+      }),
+    ),
     {
       id: completed.id,
       userId: completed.userId,
@@ -89,7 +91,7 @@ export async function upsertPersonalBests(
   ];
 
   // Compute all-time best per exercise
-  const allPBs = recalculateAllPBs(statsWorkouts as any, completed.userId);
+  const allPBs = recalculateAllPBs(statsWorkouts, completed.userId);
 
   // Filter to exercises in completed session only
   const pbsToUpsert = allPBs.filter((pb) => completedExerciseIds.has(pb.exerciseId));
@@ -130,50 +132,73 @@ export async function upsertPersonalBests(
  * Extract exercises from WorkoutBlock[] in exerciseStats format.
  * Mirrors the structure recalculateAllPBs expects.
  */
-function extractExercisesFromBlocks(blocks: WorkoutBlock[]): Array<{
-  exerciseId: string;
-  exercise?: { name?: string };
-  sets: Array<{ completed: boolean; weight: number | null; reps: number | null }>;
-}> {
-  const exercises: Array<{
-    exerciseId: string;
-    exercise?: { name?: string };
-    sets: Array<{ completed: boolean; weight: number | null; reps: number | null }>;
-  }> = [];
+function extractExercisesFromBlocks(blocks: WorkoutBlock[]): WorkoutExercise[] {
+  const exercises: WorkoutExercise[] = [];
+  let exerciseIndex = 0;
 
   for (const block of blocks) {
     if (block.kind === 'straight') {
       exercises.push({
+        id: `ex-${exerciseIndex++}`,
         exerciseId: block.exercise.exerciseId,
-        exercise: { name: block.exercise.exerciseName },
-        sets: block.exercise.sets.map((s) => ({
-          completed: s.completed,
-          weight: s.weight,
-          reps: s.reps,
-        })),
+        exercise: {
+          id: block.exercise.exerciseId,
+          name: block.exercise.exerciseName,
+        } as Exercise,
+        sets: block.exercise.sets.map(
+          (s, idx): WorkoutSet => ({
+            id: `set-${exerciseIndex}-${idx}`,
+            setNumber: idx + 1,
+            type: 'normal',
+            completed: s.completed,
+            weight: s.weight ?? undefined,
+            reps: s.reps ?? undefined,
+          }),
+        ),
+        restTimerSeconds: 90,
       });
     } else if (block.kind === 'superset') {
       for (const ex of block.exercises) {
         exercises.push({
+          id: `ex-${exerciseIndex++}`,
           exerciseId: ex.exerciseId,
-          exercise: { name: ex.exerciseName },
-          sets: ex.sets.map((s) => ({
-            completed: s.completed,
-            weight: s.weight,
-            reps: s.reps,
-          })),
+          exercise: {
+            id: ex.exerciseId,
+            name: ex.exerciseName,
+          } as Exercise,
+          sets: ex.sets.map(
+            (s, idx): WorkoutSet => ({
+              id: `set-${exerciseIndex}-${idx}`,
+              setNumber: idx + 1,
+              type: 'normal',
+              completed: s.completed,
+              weight: s.weight ?? undefined,
+              reps: s.reps ?? undefined,
+            }),
+          ),
+          restTimerSeconds: 90,
         });
       }
     } else if (block.kind === 'circuit') {
       for (const st of block.stations) {
         exercises.push({
+          id: `ex-${exerciseIndex++}`,
           exerciseId: st.exerciseId,
-          exercise: { name: st.exerciseName },
-          sets: st.sets.map((s) => ({
-            completed: s.completed,
-            weight: s.weight,
-            reps: s.reps,
-          })),
+          exercise: {
+            id: st.exerciseId,
+            name: st.exerciseName,
+          } as Exercise,
+          sets: st.sets.map(
+            (s, idx): WorkoutSet => ({
+              id: `set-${exerciseIndex}-${idx}`,
+              setNumber: idx + 1,
+              type: 'normal',
+              completed: s.completed,
+              weight: s.weight ?? undefined,
+              reps: s.reps ?? undefined,
+            }),
+          ),
+          restTimerSeconds: 90,
         });
       }
     }
