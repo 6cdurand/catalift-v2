@@ -15,7 +15,8 @@ vi.mock("next/navigation", () => ({
 const mockLogout = vi.fn();
 const mockUpsertProfile = vi.fn();
 
-vi.mock("@/features/auth", () => ({
+vi.mock("@/features/auth", async (orig) => ({
+  ...(await orig()),
   useSession: vi.fn(() => ({
     user: { id: "test-user-id", email: "test@test.com" },
     loading: false,
@@ -23,6 +24,7 @@ vi.mock("@/features/auth", () => ({
   useUserRole: vi.fn(() => ({ role: "client", loading: false })),
   logout: mockLogout,
   upsertProfile: mockUpsertProfile,
+  syncUserModeToProfile: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/supabase", () => ({
