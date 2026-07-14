@@ -28,6 +28,7 @@ interface CircuitCardProps {
   onRemoveExercise: (entryId: string) => void;
   onRemoveBlock: (blockId: string) => void;
   onAddRound: (circuitBlockId: string) => void;
+  restTimers?: Record<string, { remaining: number; total: number }>;
 }
 
 export function CircuitCard({
@@ -40,6 +41,7 @@ export function CircuitCard({
   onRemoveExercise,
   onRemoveBlock,
   onAddRound,
+  restTimers,
 }: CircuitCardProps) {
   const styles = getBlockStylesFromKind(block.kind);
   const stationCount = block.stations.length;
@@ -141,6 +143,7 @@ export function CircuitCard({
             onRemoveSet={onRemoveSet}
             onRemoveExercise={onRemoveExercise}
             hideAddSet
+            restTimers={restTimers}
           />
         ))}
       </div>
