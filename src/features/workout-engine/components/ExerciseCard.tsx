@@ -16,6 +16,8 @@ interface ExerciseCardProps {
   onRemoveSet: (entryId: string, setId: string) => void;
   onRemoveExercise: (entryId: string) => void;
   hideAddSet?: boolean;
+  /** Per-set rest timers keyed by setId (Fix B). Passed straight through to SetRow. */
+  restTimers?: Record<string, { remaining: number; total: number }>;
 }
 
 export function ExerciseCard({
@@ -27,6 +29,7 @@ export function ExerciseCard({
   onRemoveSet,
   onRemoveExercise,
   hideAddSet = false,
+  restTimers,
 }: ExerciseCardProps) {
   const completedCount = entry.sets.filter((s) => s.completed).length;
   const totalCount = entry.sets.length;
@@ -94,6 +97,7 @@ export function ExerciseCard({
             onCompleteSet={onCompleteSet}
             onUncompleteSet={onUncompleteSet}
             onRemoveSet={onRemoveSet}
+            restRemaining={restTimers?.[set.id]?.remaining}
           />
         ))}
       </div>

@@ -17,6 +17,7 @@ interface SupersetCardProps {
   onRemoveSet: (entryId: string, setId: string) => void;
   onRemoveExercise: (entryId: string) => void;
   onRemoveBlock: (blockId: string) => void;
+  restTimers?: Record<string, { remaining: number; total: number }>;
 }
 
 export function SupersetCard({
@@ -28,6 +29,7 @@ export function SupersetCard({
   onRemoveSet,
   onRemoveExercise,
   onRemoveBlock,
+  restTimers,
 }: SupersetCardProps) {
   const styles = getBlockStylesFromKind(block.kind);
   const exerciseCount = block.exercises.length;
@@ -73,6 +75,7 @@ export function SupersetCard({
             onUncompleteSet={onUncompleteSet}
             onRemoveSet={onRemoveSet}
             onRemoveExercise={onRemoveExercise}
+            restTimers={restTimers}
           />
         ))}
       </div>

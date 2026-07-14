@@ -36,6 +36,9 @@ test.describe('Straight-set execution', () => {
     // Verify volume display
     await expect(page.locator('text=vol: 640kg')).toBeVisible();
 
+    // Fix B: a per-set rest countdown becomes visible after completing the set
+    await expect(page.getByTestId('set-rest-timer')).toBeVisible();
+
     // Finish workout
     await page.click('text=Finish');
 

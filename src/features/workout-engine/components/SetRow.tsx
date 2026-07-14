@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Check, ChevronDown, RotateCcw, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, RotateCcw, Timer, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LoggedSet } from '../types';
 
@@ -21,6 +21,8 @@ interface SetRowProps {
   onCompleteSet: (entryId: string, setId: string) => void;
   onUncompleteSet: (entryId: string, setId: string) => void;
   onRemoveSet: (entryId: string, setId: string) => void;
+  /** Remaining seconds on this set's post-completion rest timer (Fix B). Undefined/0 => no timer shown. */
+  restRemaining?: number;
 }
 
 export function SetRow({
@@ -30,6 +32,7 @@ export function SetRow({
   onCompleteSet,
   onUncompleteSet,
   onRemoveSet,
+  restRemaining,
 }: SetRowProps) {
   const previousDisplay =
     set.previousWeight != null && set.previousReps != null
@@ -130,8 +133,20 @@ export function SetRow({
           />
         </div>
 
-        {/* Complete Button */}
+        {/* Complete Button / Rest Timer */}
         <div className="col-span-2 flex justify-end items-center gap-1">
+          {/* Per-set rest countdown (Fix B — ported from v1 active/page.tsx:4127-4145) */}
+          {restRemaining != null && restRemaining > 0 && (
+            <div
+              data-testid="set-rest-timer"
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-blue-500/20"
+            >
+              <Timer className="w-3 h-3 text-blue-400" />
+              <span className="font-mono text-blue-400">
+                {`${Math.floor(restRemaining / 60)}:${(restRemaining % 60).toString().padStart(2, '0')}`}
+              </span>
+            </div>
+          )}
           {!set.completed ? (
             <div className="flex items-center gap-0.5">
               <Button

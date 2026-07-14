@@ -757,6 +757,7 @@ export default function ActiveWorkoutPage() {
                 onUncompleteSet={uncompleteSet}
                 onRemoveSet={removeSet}
                 onRemoveExercise={removeExercise}
+                restTimers={setRestTimers}
               />
             );
           }
@@ -782,6 +783,7 @@ export default function ActiveWorkoutPage() {
                 onRemoveSet={removeSet}
                 onRemoveExercise={removeExercise}
                 onRemoveBlock={removeBlock}
+                restTimers={setRestTimers}
               />
             );
           }
@@ -798,6 +800,7 @@ export default function ActiveWorkoutPage() {
                 onRemoveExercise={removeExercise}
                 onRemoveBlock={removeBlock}
                 onAddRound={addRound}
+                restTimers={setRestTimers}
               />
             );
           }
