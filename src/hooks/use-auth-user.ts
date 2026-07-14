@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { useSession, useUserRole } from "@/features/auth";
-import { useViewModeStore } from "./use-view-mode";
+import { useViewModeStore, setViewModeUserScope } from "./use-view-mode";
 import type { UserMode } from "@/types";
 
 export interface AuthUser {
@@ -29,6 +30,12 @@ export function useAuthUser(): AuthUserState {
   const { user: sessionUser, loading } = useSession();
   const { role } = useUserRole(sessionUser?.id);
   const viewOverride = useViewModeStore((s) => s.viewOverride);
+
+  // Point the view-mode store at this user's scoped storage and rehydrate the
+  // persisted override, so a trainer's "preview as athlete" survives a reload.
+  useEffect(() => {
+    setViewModeUserScope(sessionUser?.id ?? null);
+  }, [sessionUser?.id]);
 
   if (!sessionUser || loading) {
     return { user: null, isAuthenticated: false };
