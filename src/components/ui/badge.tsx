@@ -10,19 +10,19 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          "border-transparent bg-sky-500/20 text-sky-400 [a&]:hover:bg-sky-500/30",
+          "border-transparent bg-theme/15 text-theme-strong [a&]:hover:bg-theme/25",
         secondary:
-          "border-slate-700 bg-slate-800 text-slate-300 [a&]:hover:bg-slate-700",
+          "border-border bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/80",
         destructive:
-          "border-transparent bg-red-500/20 text-red-400 [a&]:hover:bg-red-500/30 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
+          "border-transparent bg-red-500/15 text-red-600 [a&]:hover:bg-red-500/25 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
         outline:
-          "border-slate-700 text-slate-300 [a&]:hover:bg-slate-800 [a&]:hover:text-white",
+          "border-border text-muted-foreground [a&]:hover:bg-elevated [a&]:hover:text-foreground",
         success:
-          "border-transparent bg-emerald-500/20 text-emerald-400 [a&]:hover:bg-emerald-500/30",
+          "border-transparent bg-emerald-500/15 text-emerald-600 [a&]:hover:bg-emerald-500/25",
         warning:
-          "border-transparent bg-amber-500/20 text-amber-400 [a&]:hover:bg-amber-500/30",
+          "border-transparent bg-amber-500/15 text-amber-600 [a&]:hover:bg-amber-500/25",
         milestone:
-          "border-transparent bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-orange-400 [a&]:hover:from-orange-500/30 [a&]:hover:to-amber-500/30",
+          "border-transparent bg-gradient-to-r from-orange-500/15 to-amber-500/15 text-orange-600 [a&]:hover:from-orange-500/25 [a&]:hover:to-amber-500/25",
       },
     },
     defaultVariants: {
