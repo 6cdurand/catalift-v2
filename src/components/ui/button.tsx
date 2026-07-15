@@ -9,17 +9,17 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-sky-500 text-white hover:bg-sky-400 shadow-lg shadow-sky-500/20 hover:shadow-sky-400/30",
+        default: "bg-theme text-theme-foreground hover:bg-theme-soft shadow-lg shadow-theme/20 hover:shadow-theme/30",
         destructive:
           "bg-red-500 text-white hover:bg-red-400 shadow-lg shadow-red-500/20 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
         outline:
-          "border-2 border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:border-slate-600",
+          "border-2 border-border bg-transparent text-foreground hover:bg-elevated hover:border-ring",
         secondary:
-          "bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700",
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border",
         ghost:
-          "text-slate-300 hover:bg-slate-800/50 hover:text-white",
-        link: "text-sky-400 underline-offset-4 hover:underline hover:text-sky-300",
-        progress: "bg-gradient-to-r from-sky-500 to-sky-400 text-white shadow-lg shadow-sky-500/30 hover:shadow-sky-400/40",
+          "text-muted-foreground hover:bg-elevated hover:text-foreground",
+        link: "text-theme underline-offset-4 hover:underline hover:text-theme-soft",
+        progress: "bg-gradient-to-r from-theme to-theme-soft text-theme-foreground shadow-lg shadow-theme/30 hover:shadow-theme/40",
         milestone: "bg-gradient-to-r from-orange-500 to-amber-400 text-white shadow-lg shadow-orange-500/30 hover:shadow-orange-400/40",
       },
       size: {
