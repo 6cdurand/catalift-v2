@@ -12,7 +12,9 @@ test.describe("App shell", () => {
 
     const tabBar = page.getByTestId("app-tab-bar");
     await expect(tabBar).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+    await expect(
+      page.getByTestId("app-header").getByRole("heading", { name: "Today", exact: true })
+    ).toBeVisible();
 
     await page.evaluate(() => {
       (window as ProbeWindow).__shellProbe = "mounted";
@@ -21,7 +23,9 @@ test.describe("App shell", () => {
     await tabBar.getByRole("button", { name: "Feed" }).click();
 
     await expect(page).toHaveURL(/\/feed$/);
-    await expect(page.getByRole("heading", { name: "Feed" })).toBeVisible();
+    await expect(
+      page.getByTestId("app-header").getByRole("heading", { name: "Feed", exact: true })
+    ).toBeVisible();
     await expect(tabBar).toBeVisible();
 
     const probe = await page.evaluate(
