@@ -140,6 +140,8 @@ describe("ProgramPage (w3 client program page)", () => {
     expect(screen.getByText("Bench Press")).toBeDefined();
     expect(screen.getByText("4 × 6-8")).toBeDefined();
     expect(screen.getByText("120s")).toBeDefined();
+    // F3: tempo must render in the client program day list
+    expect(screen.getByText("3110")).toBeDefined();
   });
 
   it("shows 'Message trainer' when the program is trainer-assigned (not self)", () => {
