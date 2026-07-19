@@ -1,14 +1,20 @@
 "use client";
 
+import { Home } from "lucide-react";
 import { PageHeader } from "@/components/layouts/MainLayout";
+import { EmptyState } from "@/components/states";
 
 export default function HomePage() {
   return (
     <div>
       <PageHeader title="Home" />
-      <div className="px-5 py-16 text-center text-gray-500">
-        <p className="text-body">This screen is superseded by /today. It will land in a future lane.</p>
-      </div>
+      <EmptyState
+        icon={Home}
+        title="This page is under construction"
+        description="Check out /today for your daily training overview"
+        variant="coming-soon"
+        accentColor="sky"
+      />
     </div>
   );
 }

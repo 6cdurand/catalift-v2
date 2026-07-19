@@ -1,14 +1,20 @@
 "use client";
 
+import { Users } from "lucide-react";
 import { PageHeader } from "@/components/layouts/MainLayout";
+import { EmptyState } from "@/components/states";
 
 export default function CommunityPage() {
   return (
     <div>
       <PageHeader title="Community" subtitle="Connect with others" />
-      <div className="px-5 py-16 text-center text-gray-500">
-        <p className="text-body">This screen will land in a future lane.</p>
-      </div>
+      <EmptyState
+        icon={Users}
+        title="Community is coming soon"
+        description="Find training partners, share progress, and connect with the Catalift community"
+        variant="coming-soon"
+        accentColor="purple"
+      />
     </div>
   );
 }
