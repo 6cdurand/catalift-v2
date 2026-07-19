@@ -11,8 +11,17 @@ import type {
 
 export function computeSetVolume(set: LoggedSet): number {
   if (!set.completed) return 0;
-  if (set.weight == null || set.reps == null) return 0; // bodyweight/timed → 0 weight-volume
-  return set.weight * set.reps;
+  let volume = 0;
+  // Parent working set: weight×reps (bodyweight/timed → 0 weight-volume).
+  if (set.weight != null && set.reps != null) volume += set.weight * set.reps;
+  // Drop-set sub-rows are real completed sub-work → their tonnage counts (G-13).
+  // NOTE: this is a deliberate correctness FIX vs v1, whose volume math ignored
+  // set.drops (workoutStore.ts:410). Drops still NEVER feed PB/e1RM. No migration —
+  // historical volumes re-derive on next recompute (same class as the e1RM re-derive).
+  if (set.drops) {
+    for (const drop of set.drops) volume += drop.weight * drop.reps;
+  }
+  return volume;
 }
 
 function sumEntry(e: ExerciseEntry): number {

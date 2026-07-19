@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Heart, Layers, Repeat, Pause, Play } from 'lucide-react';
+import { Plus, Heart, Flame, Dumbbell, Zap, Link2, Pause, Play } from 'lucide-react';
 import { exerciseLibrary, allExercises } from '@/lib/exercises';
 import {
   createAndPersistCustomExercise,
@@ -512,6 +512,140 @@ function AddBlockModal({
   );
 }
 
+// Block-type picker — the single "+" entry point (faithful port of v1 active/page.tsx:5269).
+// 2×2 colour-coded tiles: Warm-Up / Strength / Circuit / Cardio. In the v2 logged model
+// there is no distinct "warmup" kind, so Warm-Up + Strength both open the straight-exercise
+// picker (DQ-1 union: straight/superset/circuit/cardio). Circuit + Cardio open their pickers.
+function BlockTypePicker({
+  onPickStraight,
+  onPickCircuit,
+  onPickCardio,
+  onClose,
+}: {
+  onPickStraight: () => void;
+  onPickCircuit: () => void;
+  onPickCardio: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      role="dialog"
+      aria-label="Add block"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-lg p-6 w-full max-w-xs"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-medium text-gray-900">Add Block</h3>
+        <p className="text-sm text-gray-500 mb-4">Choose a block type to add exercises to</p>
+        <div className="grid grid-cols-2 gap-3 py-2">
+          <button
+            onClick={onPickStraight}
+            className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-yellow-500/30 bg-yellow-500/10 hover:bg-yellow-500/20 transition-colors"
+          >
+            <span className="w-10 h-10 rounded-full bg-yellow-400 inline-flex items-center justify-center">
+              <Flame className="w-5 h-5 text-white" />
+            </span>
+            <span className="text-sm font-semibold text-yellow-600">Warm-Up</span>
+          </button>
+          <button
+            onClick={onPickStraight}
+            className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-colors"
+          >
+            <span className="w-10 h-10 rounded-full bg-blue-500 inline-flex items-center justify-center">
+              <Dumbbell className="w-5 h-5 text-white" />
+            </span>
+            <span className="text-sm font-semibold text-blue-600">Strength</span>
+          </button>
+          <button
+            onClick={onPickCircuit}
+            className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-orange-500/30 bg-orange-500/10 hover:bg-orange-500/20 transition-colors"
+          >
+            <span className="w-10 h-10 rounded-full bg-orange-400 inline-flex items-center justify-center">
+              <Zap className="w-5 h-5 text-white" />
+            </span>
+            <span className="text-sm font-semibold text-orange-600">Circuit</span>
+          </button>
+          <button
+            onClick={onPickCardio}
+            className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 transition-colors"
+          >
+            <span className="w-10 h-10 rounded-full bg-rose-400 inline-flex items-center justify-center">
+              <Heart className="w-5 h-5 text-white" />
+            </span>
+            <span className="text-sm font-semibold text-rose-600">Cardio</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Superset picker — faithful port of v1 active/page.tsx:6006. Pick a SECOND straight
+// exercise to pair with the source; both merge into one A1/A2 superset block.
+function SupersetPicker({
+  sourceName,
+  candidates,
+  onPick,
+  onClose,
+}: {
+  sourceName: string;
+  candidates: { entryId: string; name: string; setCount: number }[];
+  onPick: (targetEntryId: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      role="dialog"
+      aria-label="Create superset"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-lg p-6 w-full max-w-md"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+          <Link2 className="w-5 h-5 text-blue-500" />
+          Create Superset
+        </h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Select another exercise to pair with {sourceName}
+        </p>
+
+        <div className="max-h-64 overflow-y-auto space-y-2">
+          {candidates.length === 0 ? (
+            <p className="px-3 py-4 text-sm text-gray-500 text-center">
+              Add another standalone exercise first to pair it.
+            </p>
+          ) : (
+            candidates.map((c) => (
+              <button
+                key={c.entryId}
+                onClick={() => onPick(c.entryId)}
+                className="w-full p-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-left transition-colors"
+              >
+                <p className="font-medium text-gray-900">{c.name}</p>
+                <p className="text-xs text-gray-500">{c.setCount} sets</p>
+              </button>
+            ))
+          )}
+        </div>
+
+        <Button
+          variant="outline"
+          onClick={onClose}
+          className="w-full mt-4 border-gray-200 text-gray-500"
+        >
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function formatTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -532,7 +666,6 @@ export default function ActiveWorkoutPage() {
     startWorkout,
     addExercise,
     removeExercise,
-    addSupersetBlock,
     addCircuitBlock,
     removeBlock,
     addRound,
@@ -541,6 +674,10 @@ export default function ActiveWorkoutPage() {
     completeSet,
     uncompleteSet,
     removeSet,
+    addDropSet,
+    updateDrop,
+    removeDrop,
+    createSuperset,
     addCardioBlock,
     updateCardio,
     finishWorkout,
@@ -555,6 +692,10 @@ export default function ActiveWorkoutPage() {
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [showAddCardio, setShowAddCardio] = useState(false);
   const [showAddBlock, setShowAddBlock] = useState<'superset' | 'circuit' | false>(false);
+  // Single "+" entry point → v1 2×2 block-type picker (AC #3).
+  const [showBlockTypePicker, setShowBlockTypePicker] = useState(false);
+  // Superset creation source (v1 :1336): the straight exercise the user chose to pair.
+  const [supersetSource, setSupersetSource] = useState<{ entryId: string; name: string } | null>(null);
   const [readyToRedirect, setReadyToRedirect] = useState(false);
   const workoutStartAttempted = useRef(false);
   const [showSummary, setShowSummary] = useState(false);
@@ -682,6 +823,25 @@ export default function ActiveWorkoutPage() {
     }));
   };
 
+  // Superset creation (v1 :1336): open the picker seeded with the source straight exercise.
+  const handleOpenSupersetPicker = (entryId: string) => {
+    const block = activeWorkout?.blocks.find(
+      (b) => b.kind === 'straight' && b.exercise.id === entryId,
+    );
+    if (block?.kind === 'straight') {
+      setSupersetSource({ entryId, name: block.exercise.exerciseName });
+    }
+  };
+
+  // Other standalone straight exercises the source can pair with (v1 :6027 filter).
+  const supersetCandidates = (activeWorkout?.blocks ?? [])
+    .map((b) =>
+      b.kind === 'straight' && b.exercise.id !== supersetSource?.entryId
+        ? { entryId: b.exercise.id, name: b.exercise.exerciseName, setCount: b.exercise.sets.length }
+        : null,
+    )
+    .filter((c): c is { entryId: string; name: string; setCount: number } => c !== null);
+
   const handleFinish = async () => {
     if (isFinishing) return;
     const durationSnapshot = workoutTimerSeconds;
@@ -757,6 +917,10 @@ export default function ActiveWorkoutPage() {
                 onUncompleteSet={uncompleteSet}
                 onRemoveSet={removeSet}
                 onRemoveExercise={removeExercise}
+                onCreateSuperset={handleOpenSupersetPicker}
+                onAddDropSet={addDropSet}
+                onUpdateDrop={updateDrop}
+                onRemoveDrop={removeDrop}
                 restTimers={setRestTimers}
               />
             );
@@ -783,6 +947,9 @@ export default function ActiveWorkoutPage() {
                 onRemoveSet={removeSet}
                 onRemoveExercise={removeExercise}
                 onRemoveBlock={removeBlock}
+                onAddDropSet={addDropSet}
+                onUpdateDrop={updateDrop}
+                onRemoveDrop={removeDrop}
                 restTimers={setRestTimers}
               />
             );
@@ -808,38 +975,15 @@ export default function ActiveWorkoutPage() {
         })}
       </div>
 
-      {/* Add block buttons */}
-      <div className="p-4 space-y-2">
+      {/* Single "+" entry point → v1 2×2 block-type picker (AC #3). */}
+      <div className="p-4">
         <Button
           variant="outline"
           className="w-full"
-          onClick={() => setShowAddExercise(true)}
+          onClick={() => setShowBlockTypePicker(true)}
         >
-          <Plus className="w-4 h-4 mr-2" /> Add Exercise
+          <Plus className="w-4 h-4 mr-2" /> Add Block
         </Button>
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => setShowAddCardio(true)}
-        >
-          <Heart className="w-4 h-4 mr-2" /> Add Cardio
-        </Button>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => setShowAddBlock('superset')}
-          >
-            <Layers className="w-4 h-4 mr-2" /> Add Superset
-          </Button>
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => setShowAddBlock('circuit')}
-          >
-            <Repeat className="w-4 h-4 mr-2" /> Add Circuit
-          </Button>
-        </div>
       </div>
 
       {showAddExercise && (
@@ -864,15 +1008,33 @@ export default function ActiveWorkoutPage() {
         />
       )}
 
-      {showAddBlock === 'superset' && (
-        <AddBlockModal
-          mode="superset"
-          onAdd={(exercises) => {
-            addSupersetBlock(exercises);
-            setShowAddBlock(false);
+      {showBlockTypePicker && (
+        <BlockTypePicker
+          onPickStraight={() => {
+            setShowBlockTypePicker(false);
+            setShowAddExercise(true);
           }}
-          onClose={() => setShowAddBlock(false)}
-          userId={user?.id}
+          onPickCircuit={() => {
+            setShowBlockTypePicker(false);
+            setShowAddBlock('circuit');
+          }}
+          onPickCardio={() => {
+            setShowBlockTypePicker(false);
+            setShowAddCardio(true);
+          }}
+          onClose={() => setShowBlockTypePicker(false)}
+        />
+      )}
+
+      {supersetSource && (
+        <SupersetPicker
+          sourceName={supersetSource.name}
+          candidates={supersetCandidates}
+          onPick={(targetEntryId) => {
+            createSuperset(supersetSource.entryId, targetEntryId);
+            setSupersetSource(null);
+          }}
+          onClose={() => setSupersetSource(null)}
         />
       )}
 

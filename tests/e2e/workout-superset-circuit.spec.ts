@@ -9,28 +9,28 @@ test.describe('Superset + Circuit execution (w2b)', () => {
     await page.goto('/workout/active');
   });
 
-  test('add a Superset of 2 exercises → log a set in each → both persist', async ({ page }) => {
+  test('create a Superset from two exercises via the actions menu → log a set in each → both persist', async ({ page }) => {
     // Wait for workout to auto-start
-    await expect(page.locator('text=Add Exercise')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Add Block')).toBeVisible({ timeout: 10000 });
 
-    // Click "Add Superset"
-    await page.getByRole('button', { name: /Add Superset/ }).click();
-
-    // Modal should appear
-    await expect(page.getByRole('heading', { name: 'Add Superset' })).toBeVisible();
-
-    // Search and select first exercise
+    // Add two standalone strength exercises (+ → Strength tile)
+    await page.getByRole('button', { name: 'Add Block' }).click();
+    await page.getByRole('button', { name: 'Strength' }).click();
     await page.getByPlaceholder('Search exercises').fill('Bench');
     await page.locator('button:has-text("Barbell Bench Press")').first().click();
 
-    // Search and select second exercise
+    await page.getByRole('button', { name: 'Add Block' }).click();
+    await page.getByRole('button', { name: 'Strength' }).click();
     await page.getByPlaceholder('Search exercises').fill('Squat');
     await page.locator('button:has-text("Barbell Back Squat")').first().click();
 
-    // Click add button (the one inside the modal, not the page-level button)
-    await page.getByRole('button', { name: /^Add \d+ Superset$/ }).click();
+    // Create a superset from the first exercise's actions menu (v1 :1336)
+    await page.getByLabel('Exercise actions').first().click();
+    await page.getByRole('menuitem', { name: 'Create Superset' }).click();
+    // Pick the second exercise in the superset picker
+    await page.getByRole('button', { name: /Barbell Back Squat/ }).click();
 
-    // Verify superset block appears with badge
+    // Verify superset block appears with both exercises grouped
     await expect(page.getByText('Superset').first()).toBeVisible();
     await expect(page.locator('text=Barbell Bench Press')).toBeVisible();
     await expect(page.locator('text=Barbell Back Squat')).toBeVisible();
@@ -72,10 +72,11 @@ test.describe('Superset + Circuit execution (w2b)', () => {
   test('add a Circuit (2 stations, 3 rounds) → Add Round → a set appears in each station → finish saves', async ({
     page,
   }) => {
-    await expect(page.locator('text=Add Exercise')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Add Block')).toBeVisible({ timeout: 10000 });
 
-    // Click "Add Circuit"
-    await page.getByRole('button', { name: /Add Circuit/ }).click();
+    // Open the block-type picker and choose Circuit (+ → Circuit tile)
+    await page.getByRole('button', { name: 'Add Block' }).click();
+    await page.getByRole('button', { name: 'Circuit' }).click();
 
     // Modal should appear
     await expect(page.getByRole('heading', { name: 'Add Circuit' })).toBeVisible();
@@ -131,15 +132,22 @@ test.describe('Superset + Circuit execution (w2b)', () => {
   test('saved workout reads back with superset + circuit blocks intact (fromRow)', async ({
     page,
   }) => {
-    await expect(page.locator('text=Add Exercise')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Add Block')).toBeVisible({ timeout: 10000 });
 
-    // Add a superset
-    await page.getByRole('button', { name: /Add Superset/ }).click();
+    // Add two exercises then pair them into a superset via the actions menu
+    await page.getByRole('button', { name: 'Add Block' }).click();
+    await page.getByRole('button', { name: 'Strength' }).click();
     await page.getByPlaceholder('Search exercises').fill('Bench');
     await page.locator('button:has-text("Barbell Bench Press")').first().click();
+
+    await page.getByRole('button', { name: 'Add Block' }).click();
+    await page.getByRole('button', { name: 'Strength' }).click();
     await page.getByPlaceholder('Search exercises').fill('Row');
     await page.locator('button:has-text("Barbell Bent-Over Row")').first().click();
-    await page.getByRole('button', { name: /^Add \d+ Superset$/ }).click();
+
+    await page.getByLabel('Exercise actions').first().click();
+    await page.getByRole('menuitem', { name: 'Create Superset' }).click();
+    await page.getByRole('button', { name: /Barbell Bent-Over Row/ }).click();
 
     // Verify superset persisted in the DOM (state persists via Zustand)
     await expect(page.getByText('Superset').first()).toBeVisible();

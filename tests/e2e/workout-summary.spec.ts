@@ -13,8 +13,9 @@ test.describe('Workout summary screen', () => {
     // Wait for workout to auto-start
     await page.waitForTimeout(2000);
 
-    // Add an exercise
-    await page.click('text=Add Exercise');
+    // Add an exercise (+ → Strength tile)
+    await page.getByRole('button', { name: 'Add Block' }).click();
+    await page.getByRole('button', { name: 'Strength' }).click();
     await page.fill('input[placeholder*="Search exercises"]', 'Bench');
     await page.locator('button:has-text("Barbell Bench Press")').first().click();
 
