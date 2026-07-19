@@ -7,6 +7,22 @@
 
 export type BlockKind = "straight" | "superset" | "circuit" | "cardio";
 
+/**
+ * A drop-set sub-row (faithful port of v1 active/page.tsx set.drops[], :6383).
+ * Lighter sub-work performed immediately after the parent working set (reduce load,
+ * keep repping). DQ-1 §5 additive jsonb field — no SQL migration; legacy rows without
+ * `drops` parse fine.
+ *
+ * Volume: each drop's weight×reps DOES count toward total volume (G-13, real tonnage).
+ * PB/e1RM: drops NEVER feed calculate1RM / PB detection — only the parent working set
+ * can set a PB. See history-stats.toStatsWorkout (drops deliberately not mapped).
+ */
+export interface DropSet {
+  id: string; // uuid v4 (G-10)
+  weight: number; // kg
+  reps: number;
+}
+
 /** A single performed set (resistance or timed). */
 export interface LoggedSet {
   id: string; // uuid v4 (G-10)
@@ -21,6 +37,9 @@ export interface LoggedSet {
   previousWeight?: number | null; // drives placeholder in set row
   previousReps?: number | null; // drives placeholder in set row
   setNumber: number; // 1-based display index
+  // Drop-set sub-rows (v1 :1322 handleAddDropSet). Additive (DQ-1 §5). Counts toward
+  // volume (G-13); excluded from PB/e1RM.
+  drops?: DropSet[];
 }
 
 export interface ExerciseEntry {

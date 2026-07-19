@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Check, ChevronDown, RotateCcw, Timer, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { LoggedSet } from '../types';
+import type { DropSet, LoggedSet } from '../types';
 
 interface SetRowProps {
   set: LoggedSet;
@@ -21,6 +21,9 @@ interface SetRowProps {
   onCompleteSet: (entryId: string, setId: string) => void;
   onUncompleteSet: (entryId: string, setId: string) => void;
   onRemoveSet: (entryId: string, setId: string) => void;
+  /** Drop-set inline edit (v1 :6383). Optional — only wired for editable straight/grouped entries. */
+  onUpdateDrop?: (entryId: string, setId: string, dropId: string, updates: Partial<DropSet>) => void;
+  onRemoveDrop?: (entryId: string, setId: string, dropId: string) => void;
   /** Remaining seconds on this set's post-completion rest timer (Fix B). Undefined/0 => no timer shown. */
   restRemaining?: number;
 }
@@ -32,6 +35,8 @@ export function SetRow({
   onCompleteSet,
   onUncompleteSet,
   onRemoveSet,
+  onUpdateDrop,
+  onRemoveDrop,
   restRemaining,
 }: SetRowProps) {
   const previousDisplay =
@@ -200,6 +205,77 @@ export function SetRow({
           )}
         </div>
       </div>
+
+      {/* Drop-set sub-rows (faithful port of v1 active/page.tsx:6383): shaded rows under
+          the main set. Editable when onUpdateDrop is wired (straight/superset entries). */}
+      {set.drops && set.drops.length > 0 && (
+        <div className="border-l-2 border-orange-500/50 ml-4 mt-1">
+          {set.drops.map((drop, idx) => (
+            <div
+              key={drop.id}
+              data-testid="drop-set-row"
+              className="grid grid-cols-12 gap-1 sm:gap-2 px-2 sm:px-4 py-2 items-center bg-orange-500/10"
+            >
+              <div className="col-span-3 sm:col-span-2">
+                <span className="inline-flex items-center rounded border border-orange-500/30 bg-orange-500/20 px-1.5 py-0.5 text-[10px] font-medium text-orange-500">
+                  Drop {idx + 1}
+                </span>
+              </div>
+              <div className="col-span-2 sm:col-span-2 hidden sm:block">
+                <span className="text-xs text-gray-500">—</span>
+              </div>
+              <div className="col-span-3">
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  pattern="[0-9.]*"
+                  placeholder="0"
+                  min="0"
+                  step="any"
+                  value={drop.weight || ''}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) =>
+                    onUpdateDrop?.(entryId, set.id, drop.id, {
+                      weight: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  className="min-h-[44px] h-8 sm:h-9 text-center text-xs sm:text-sm bg-white border-gray-200 px-1"
+                />
+              </div>
+              <div className="col-span-3">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="0"
+                  min="0"
+                  value={drop.reps || ''}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) =>
+                    onUpdateDrop?.(entryId, set.id, drop.id, {
+                      reps: parseInt(e.target.value, 10) || 0,
+                    })
+                  }
+                  className="min-h-[44px] h-8 sm:h-9 text-center text-xs sm:text-sm bg-white border-gray-200 px-1"
+                />
+              </div>
+              <div className="col-span-1 flex justify-end">
+                {onRemoveDrop && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => onRemoveDrop(entryId, set.id, drop.id)}
+                    className="h-8 w-8 text-gray-500 hover:text-red-400 hover:bg-red-500/10"
+                    title="Remove drop"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Per-set volume display */}
       {set.completed && set.weight && set.reps && (

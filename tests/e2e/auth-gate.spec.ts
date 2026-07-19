@@ -78,7 +78,7 @@ test.describe('Auth gate (BUG-012) — signed IN', () => {
   }) => {
     await page.goto('/workout/active');
     await expect(page).toHaveURL(/\/workout\/active$/);
-    await expect(page.getByText('Add Exercise')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Add Block')).toBeVisible({ timeout: 10000 });
   });
 
   test('visiting /login while signed in redirects to /today', async ({

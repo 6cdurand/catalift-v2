@@ -2,10 +2,17 @@
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ChevronDown, Link2, MoreVertical, Plus, Trash2 } from 'lucide-react';
 import { SetRow } from './SetRow';
 import { getExerciseAnimationUrl } from '@/lib/exerciseAnimations';
-import type { ExerciseEntry, LoggedSet } from '../types';
+import type { DropSet, ExerciseEntry, LoggedSet } from '../types';
 
 interface ExerciseCardProps {
   entry: ExerciseEntry;
@@ -15,6 +22,12 @@ interface ExerciseCardProps {
   onUncompleteSet: (entryId: string, setId: string) => void;
   onRemoveSet: (entryId: string, setId: string) => void;
   onRemoveExercise: (entryId: string) => void;
+  /** Drop-set actions (v1 :1322/:6383). When provided, an actions menu offers "Add Drop Set". */
+  onAddDropSet?: (entryId: string) => void;
+  onUpdateDrop?: (entryId: string, setId: string, dropId: string, updates: Partial<DropSet>) => void;
+  onRemoveDrop?: (entryId: string, setId: string, dropId: string) => void;
+  /** Superset creation (v1 :1336). When provided, an actions menu offers "Create Superset". */
+  onCreateSuperset?: (sourceEntryId: string) => void;
   hideAddSet?: boolean;
   /** Per-set rest timers keyed by setId (Fix B). Passed straight through to SetRow. */
   restTimers?: Record<string, { remaining: number; total: number }>;
@@ -28,9 +41,14 @@ export function ExerciseCard({
   onUncompleteSet,
   onRemoveSet,
   onRemoveExercise,
+  onAddDropSet,
+  onUpdateDrop,
+  onRemoveDrop,
+  onCreateSuperset,
   hideAddSet = false,
   restTimers,
 }: ExerciseCardProps) {
+  const showActionsMenu = Boolean(onCreateSuperset || onAddDropSet);
   const completedCount = entry.sets.filter((s) => s.completed).length;
   const totalCount = entry.sets.length;
 
@@ -64,15 +82,61 @@ export function ExerciseCard({
             <Badge variant="secondary" className="bg-gray-100 text-gray-600">
               {completedCount}/{totalCount}
             </Badge>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => onRemoveExercise(entry.id)}
-              className="h-8 w-8 text-gray-500 hover:text-red-400"
-              title="Remove exercise"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            {showActionsMenu ? (
+              // Exercise actions menu (faithful port of v1 active/page.tsx:3866-3910):
+              // Create Superset + Add Drop Set + Remove Exercise.
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-gray-500 hover:text-gray-700"
+                    aria-label="Exercise actions"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-white border-gray-200 shadow-lg">
+                  {onCreateSuperset && (
+                    <DropdownMenuItem
+                      className="text-blue-500 focus:text-blue-600"
+                      onClick={() => onCreateSuperset(entry.id)}
+                    >
+                      <Link2 className="w-4 h-4 mr-2" />
+                      Create Superset
+                    </DropdownMenuItem>
+                  )}
+                  {onAddDropSet && (
+                    <DropdownMenuItem
+                      className="text-orange-500 focus:text-orange-600"
+                      onClick={() => onAddDropSet(entry.id)}
+                    >
+                      <ChevronDown className="w-4 h-4 mr-2" />
+                      Add Drop Set
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator className="bg-gray-200" />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    className="text-red-500 focus:text-red-600"
+                    onClick={() => onRemoveExercise(entry.id)}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Remove Exercise
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => onRemoveExercise(entry.id)}
+                className="h-8 w-8 text-gray-500 hover:text-red-400"
+                title="Remove exercise"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -97,6 +161,8 @@ export function ExerciseCard({
             onCompleteSet={onCompleteSet}
             onUncompleteSet={onUncompleteSet}
             onRemoveSet={onRemoveSet}
+            onUpdateDrop={onUpdateDrop}
+            onRemoveDrop={onRemoveDrop}
             restRemaining={restTimers?.[set.id]?.remaining}
           />
         ))}

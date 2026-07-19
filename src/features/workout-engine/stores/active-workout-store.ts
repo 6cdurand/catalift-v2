@@ -5,7 +5,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { StateStorage } from 'zustand/middleware';
-import type { LoggedWorkout, WorkoutBlock, LoggedSet, CardioPayload, ExerciseEntry } from '../types';
+import type { LoggedWorkout, WorkoutBlock, LoggedSet, CardioPayload, ExerciseEntry, DropSet } from '../types';
 import { newId } from '../lib/ids';
 import { computeTotalVolume } from '../lib/volume';
 import { toRow } from '../lib/serialize';
@@ -96,6 +96,15 @@ interface ActiveWorkoutState {
   updateSet: (entryId: string, setId: string, updates: Partial<LoggedSet>) => void;
   completeSet: (entryId: string, setId: string) => void;
   uncompleteSet: (entryId: string, setId: string) => void;
+
+  // Drop-set actions (faithful port of v1 handleAddDropSet :1322 + set.drops edit/remove)
+  addDropSet: (entryId: string) => void;
+  updateDrop: (entryId: string, setId: string, dropId: string, updates: Partial<DropSet>) => void;
+  removeDrop: (entryId: string, setId: string, dropId: string) => void;
+
+  // Superset creation from two existing straight blocks (v1 handleCreateSuperset :1336,
+  // adapted to the v2 block model — merges both straight blocks into one superset block).
+  createSuperset: (sourceEntryId: string, targetEntryId: string) => void;
 
   // Cardio block actions (w2c)
   addCardioBlock: (params: { exerciseId: string; exerciseName: string; cardio: CardioPayload }) => void;
@@ -412,6 +421,108 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
       uncompleteSet: (entryId, setId) => {
         const { updateSet } = get();
         updateSet(entryId, setId, { completed: false });
+      },
+
+      // Faithful port of v1 handleAddDropSet (active/page.tsx:1322): append ONE drop row
+      // to EVERY set of the exercise. Drops default to 0/0 and are edited inline (v1 :6383).
+      addDropSet: (entryId) => {
+        const { activeWorkout } = get();
+        if (!activeWorkout) return;
+
+        set({
+          activeWorkout: {
+            ...activeWorkout,
+            blocks: mapEntry(activeWorkout.blocks, entryId, (entry) => ({
+              ...entry,
+              sets: entry.sets.map((s) => ({
+                ...s,
+                drops: [...(s.drops ?? []), { id: newId(), weight: 0, reps: 0 }],
+              })),
+            })),
+          },
+        });
+      },
+
+      updateDrop: (entryId, setId, dropId, updates) => {
+        const { activeWorkout } = get();
+        if (!activeWorkout) return;
+
+        set({
+          activeWorkout: {
+            ...activeWorkout,
+            blocks: mapEntry(activeWorkout.blocks, entryId, (entry) => ({
+              ...entry,
+              sets: entry.sets.map((s) =>
+                s.id === setId
+                  ? {
+                      ...s,
+                      drops: (s.drops ?? []).map((d) =>
+                        d.id === dropId ? { ...d, ...updates } : d,
+                      ),
+                    }
+                  : s,
+              ),
+            })),
+          },
+        });
+      },
+
+      removeDrop: (entryId, setId, dropId) => {
+        const { activeWorkout } = get();
+        if (!activeWorkout) return;
+
+        set({
+          activeWorkout: {
+            ...activeWorkout,
+            blocks: mapEntry(activeWorkout.blocks, entryId, (entry) => ({
+              ...entry,
+              sets: entry.sets.map((s) =>
+                s.id === setId
+                  ? { ...s, drops: (s.drops ?? []).filter((d) => d.id !== dropId) }
+                  : s,
+              ),
+            })),
+          },
+        });
+      },
+
+      // Faithful port of v1 handleCreateSuperset (active/page.tsx:1336). v1 tagged two flat
+      // exercises with a shared groupId; the v2 block model represents a superset as a
+      // first-class block, so we MERGE the two source/target straight blocks into one
+      // superset block, preserving the source block's position (parity: a trainer-authored
+      // superset renders identically). No-op unless BOTH entries are in straight blocks.
+      createSuperset: (sourceEntryId, targetEntryId) => {
+        const { activeWorkout } = get();
+        if (!activeWorkout) return;
+        if (sourceEntryId === targetEntryId) return;
+
+        const blocks = activeWorkout.blocks;
+        const srcIdx = blocks.findIndex(
+          (b) => b.kind === 'straight' && b.exercise.id === sourceEntryId,
+        );
+        const tgtIdx = blocks.findIndex(
+          (b) => b.kind === 'straight' && b.exercise.id === targetEntryId,
+        );
+        if (srcIdx === -1 || tgtIdx === -1 || srcIdx === tgtIdx) return;
+
+        const srcBlock = blocks[srcIdx];
+        const tgtBlock = blocks[tgtIdx];
+        if (srcBlock.kind !== 'straight' || tgtBlock.kind !== 'straight') return;
+
+        const supersetBlock: WorkoutBlock = {
+          id: newId(),
+          kind: 'superset',
+          exercises: [srcBlock.exercise, tgtBlock.exercise],
+        };
+
+        set({
+          activeWorkout: {
+            ...activeWorkout,
+            blocks: blocks
+              .map((b, i) => (i === srcIdx ? supersetBlock : b))
+              .filter((_, i) => i !== tgtIdx),
+          },
+        });
       },
 
       addCardioBlock: ({ exerciseId, exerciseName, cardio }) => {

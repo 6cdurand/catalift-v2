@@ -55,6 +55,42 @@ describe("computeSetVolume (G-13)", () => {
   it("null reps → 0 volume", () => {
     expect(computeSetVolume(set(100, null))).toBe(0);
   });
+
+  // Drop-set tonnage (DQ-1 §5 / user Option A): each drop's weight×reps adds to volume.
+  it("adds drop-set tonnage to the parent set (100×5 + drop 60×8 = 980)", () => {
+    const s = set(100, 5, true, {
+      drops: [{ id: "d1", weight: 60, reps: 8 }],
+    });
+    expect(computeSetVolume(s)).toBe(500 + 480);
+  });
+
+  it("sums multiple drops (100×5 + 60×8 + 40×10 = 1380)", () => {
+    const s = set(100, 5, true, {
+      drops: [
+        { id: "d1", weight: 60, reps: 8 },
+        { id: "d2", weight: 40, reps: 10 },
+      ],
+    });
+    expect(computeSetVolume(s)).toBe(500 + 480 + 400);
+  });
+
+  it("incomplete parent with drops → 0 (drops gated on parent completion)", () => {
+    const s = set(100, 5, false, {
+      drops: [{ id: "d1", weight: 60, reps: 8 }],
+    });
+    expect(computeSetVolume(s)).toBe(0);
+  });
+
+  it("bodyweight parent (weight=null) still counts its drops", () => {
+    const s = set(null, 12, true, {
+      drops: [{ id: "d1", weight: 20, reps: 10 }],
+    });
+    expect(computeSetVolume(s)).toBe(200);
+  });
+
+  it("empty drops[] behaves like no drops", () => {
+    expect(computeSetVolume(set(100, 5, true, { drops: [] }))).toBe(500);
+  });
 });
 
 describe("computeBlockVolume / computeTotalVolume (SUM, never MAX)", () => {

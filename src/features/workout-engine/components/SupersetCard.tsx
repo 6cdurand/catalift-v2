@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { ExerciseCard } from './ExerciseCard';
 import { BlockMenu } from './BlockMenu';
 import { getBlockStylesFromKind } from './block-types';
-import type { WorkoutBlock, ExerciseEntry, LoggedSet } from '../types';
+import type { WorkoutBlock, ExerciseEntry, LoggedSet, DropSet } from '../types';
 
 interface SupersetCardProps {
   block: Extract<WorkoutBlock, { kind: 'superset' }>;
@@ -17,6 +17,10 @@ interface SupersetCardProps {
   onRemoveSet: (entryId: string, setId: string) => void;
   onRemoveExercise: (entryId: string) => void;
   onRemoveBlock: (blockId: string) => void;
+  /** Drop-set actions (v1 :1322/:6383) — grouped exercises can carry drops too. */
+  onAddDropSet?: (entryId: string) => void;
+  onUpdateDrop?: (entryId: string, setId: string, dropId: string, updates: Partial<DropSet>) => void;
+  onRemoveDrop?: (entryId: string, setId: string, dropId: string) => void;
   restTimers?: Record<string, { remaining: number; total: number }>;
 }
 
@@ -29,6 +33,9 @@ export function SupersetCard({
   onRemoveSet,
   onRemoveExercise,
   onRemoveBlock,
+  onAddDropSet,
+  onUpdateDrop,
+  onRemoveDrop,
   restTimers,
 }: SupersetCardProps) {
   const styles = getBlockStylesFromKind(block.kind);
@@ -75,6 +82,9 @@ export function SupersetCard({
             onUncompleteSet={onUncompleteSet}
             onRemoveSet={onRemoveSet}
             onRemoveExercise={onRemoveExercise}
+            onAddDropSet={onAddDropSet}
+            onUpdateDrop={onUpdateDrop}
+            onRemoveDrop={onRemoveDrop}
             restTimers={restTimers}
           />
         ))}

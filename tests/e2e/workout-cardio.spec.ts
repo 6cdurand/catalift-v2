@@ -14,10 +14,11 @@ test.describe('Cardio block execution (w2c)', () => {
   test('add cardio (Running, 30 min, 5 km, 300 cal) → cardio card appears with values', async ({
     page,
   }) => {
-    await expect(page.locator('text=Add Exercise')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Add Block')).toBeVisible({ timeout: 10000 });
 
-    // Click "Add Cardio"
-    await page.getByRole('button', { name: /Add Cardio/ }).click();
+    // Open the v1 2×2 block-type picker (+ → Cardio tile)
+    await page.getByRole('button', { name: 'Add Block' }).click();
+    await page.getByRole('button', { name: 'Cardio' }).click();
 
     // Modal should appear
     await expect(page.getByRole('heading', { name: 'Add Cardio' })).toBeVisible();
@@ -33,9 +34,8 @@ test.describe('Cardio block execution (w2c)', () => {
     // Confirm
     await page.getByRole('dialog').getByRole('button', { name: 'Add' }).click();
 
-    // Verify cardio card appears
-    await expect(page.getByText('Cardio').first()).toBeVisible();
-    await expect(page.getByText('Running')).toBeVisible();
+    // Verify cardio card appears (its heading is the exercise name)
+    await expect(page.getByRole('heading', { name: 'Running' })).toBeVisible();
 
     // Verify duration input shows 30 (minutes)
     const durationInput = page.locator('input[id*="cardio-duration-"]');
@@ -55,17 +55,18 @@ test.describe('Cardio block execution (w2c)', () => {
   });
 
   test('edit duration → value updates → finish saves', async ({ page }) => {
-    await expect(page.locator('text=Add Exercise')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Add Block')).toBeVisible({ timeout: 10000 });
 
-    // Add cardio with 20 min duration
-    await page.getByRole('button', { name: /Add Cardio/ }).click();
+    // Add cardio with 20 min duration (+ → Cardio tile)
+    await page.getByRole('button', { name: 'Add Block' }).click();
+    await page.getByRole('button', { name: 'Cardio' }).click();
     await page.getByPlaceholder('Search cardio exercises').fill('Running');
     await page.locator('button:has-text("Running")').first().click();
     await page.getByLabel('Duration (minutes)').fill('20');
     await page.getByRole('dialog').getByRole('button', { name: 'Add' }).click();
 
-    // Verify it appeared
-    await expect(page.getByText('Cardio').first()).toBeVisible();
+    // Verify it appeared (heading = exercise name)
+    await expect(page.getByRole('heading', { name: 'Running' })).toBeVisible();
 
     // Edit duration to 45 min
     const durationInput = page.locator('input[id*="cardio-duration-"]');
@@ -78,34 +79,34 @@ test.describe('Cardio block execution (w2c)', () => {
   });
 
   test('reload → cardio block rehydrates (G-09 persist)', async ({ page }) => {
-    await expect(page.locator('text=Add Exercise')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Add Block')).toBeVisible({ timeout: 10000 });
 
-    // Add cardio
-    await page.getByRole('button', { name: /Add Cardio/ }).click();
+    // Add cardio (+ → Cardio tile)
+    await page.getByRole('button', { name: 'Add Block' }).click();
+    await page.getByRole('button', { name: 'Cardio' }).click();
     await page.getByPlaceholder('Search cardio exercises').fill('Cycling');
     await page.locator('button:has-text("Cycling")').first().click();
     await page.getByLabel('Duration (minutes)').fill('40');
     await page.getByRole('dialog').getByRole('button', { name: 'Add' }).click();
 
-    // Verify cardio block is present
-    await expect(page.getByText('Cardio').first()).toBeVisible();
-    await expect(page.getByText('Cycling')).toBeVisible();
+    // Verify cardio block is present (heading = exercise name)
+    await expect(page.getByRole('heading', { name: 'Cycling' })).toBeVisible();
 
     // Reload the page — workout state should rehydrate (G-09)
     await page.reload();
 
     // After reload, the cardio block should still be there
-    await expect(page.getByText('Cardio').first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText('Cycling')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Cycling' })).toBeVisible({ timeout: 10000 });
   });
 
   test('cardio + straight set in same workout → finish saves → totalVolume = straight only (cardio = 0)', async ({
     page,
   }) => {
-    await expect(page.locator('text=Add Exercise')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Add Block')).toBeVisible({ timeout: 10000 });
 
-    // Add a straight-set exercise
-    await page.getByRole('button', { name: 'Add Exercise' }).click();
+    // Add a straight-set exercise (+ → Strength tile)
+    await page.getByRole('button', { name: 'Add Block' }).click();
+    await page.getByRole('button', { name: 'Strength' }).click();
     await page.getByPlaceholder('Search exercises (e.g. Bench Press)').fill('Bench');
     await page.locator('button:has-text("Barbell Bench Press")').first().click();
 
@@ -119,8 +120,9 @@ test.describe('Cardio block execution (w2c)', () => {
     // Verify volume
     await expect(page.locator('text=vol: 640kg')).toBeVisible();
 
-    // Add cardio
-    await page.getByRole('button', { name: /Add Cardio/ }).click();
+    // Add cardio (+ → Cardio tile)
+    await page.getByRole('button', { name: 'Add Block' }).click();
+    await page.getByRole('button', { name: 'Cardio' }).click();
     await page.getByPlaceholder('Search cardio exercises').fill('Running');
     await page.locator('button:has-text("Running")').first().click();
     await page.getByLabel('Duration (minutes)').fill('30');
@@ -128,7 +130,7 @@ test.describe('Cardio block execution (w2c)', () => {
 
     // Verify both blocks are present
     await expect(page.getByText('Barbell Bench Press')).toBeVisible();
-    await expect(page.getByText('Cardio').first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Running' })).toBeVisible();
 
     // Finish — should save (totalVolume = 640 from straight, 0 from cardio)
     await page.getByRole('button', { name: 'Finish' }).click();

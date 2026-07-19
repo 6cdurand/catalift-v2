@@ -14,8 +14,9 @@ test.describe('Straight-set execution', () => {
     // Wait for page to be ready (workout should auto-start)
     await page.waitForTimeout(2000); // Give time for workout to auto-start and hydration
 
-    // Add an exercise
-    await page.click('text=Add Exercise');
+    // Add an exercise via the v1 2×2 block-type picker (+ → Strength tile)
+    await page.getByRole('button', { name: 'Add Block' }).click();
+    await page.getByRole('button', { name: 'Strength' }).click();
     await page.fill('input[placeholder*="Search exercises"]', 'Bench');
     // Click the first result (Barbell Bench Press)
     await page.locator('button:has-text("Barbell Bench Press")').first().click();
