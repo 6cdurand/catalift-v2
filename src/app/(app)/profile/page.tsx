@@ -27,6 +27,7 @@ import {
   LogOut,
   Zap,
   Target,
+  TrendingUp,
   Award,
   DollarSign,
   Crown,
@@ -587,6 +588,17 @@ export default function ProfilePage() {
         {/* Account Actions */}
         <Card className="bg-white border-gray-200 shadow-sm">
           <CardContent className="p-0">
+            {!isTrainerMode && (
+              <Button
+                variant="ghost"
+                className="w-full justify-start h-14 px-4 text-gray-600 hover:bg-gray-50 rounded-none border-b border-gray-200"
+                onClick={() => router.push('/reports')}
+              >
+                <TrendingUp className="w-5 h-5 mr-3 text-sky-500" />
+                Weekly Report
+                <ChevronRight className="w-5 h-5 ml-auto text-gray-500" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               className="w-full justify-start h-14 px-4 text-gray-600 hover:bg-gray-50 rounded-none border-b border-gray-200"
