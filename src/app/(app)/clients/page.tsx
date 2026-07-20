@@ -412,7 +412,7 @@ export default function ClientsPage() {
                     <Card
                       key={client.id}
                       className="bg-white border-gray-200 shadow-sm cursor-pointer hover:border-gray-300 transition-colors"
-                      onClick={() => comingSoon("Client profile")}
+                      onClick={() => router.push(`/clients/${client.id}`)}
                     >
                       <CardContent className="p-4">
                         <div className="flex items-start gap-3">
