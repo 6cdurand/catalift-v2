@@ -186,7 +186,7 @@ export default function BuilderPage() {
 
           <Card
             className="bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border-emerald-500/30 cursor-pointer hover:border-emerald-500/50 transition-all"
-            onClick={() => router.push("/program/builder")}
+            onClick={() => router.push("/program/select")}
           >
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
