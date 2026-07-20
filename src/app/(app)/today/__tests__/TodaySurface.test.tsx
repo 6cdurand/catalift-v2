@@ -97,6 +97,7 @@ function renderSurface(
       stats={props.stats ?? STATS}
       todaySessions={props.todaySessions ?? []}
       onStartWorkout={props.onStartWorkout ?? noop}
+      onBuildWorkout={props.onBuildWorkout ?? noop}
       onPreview={props.onPreview ?? noop}
       onSwap={props.onSwap ?? noop}
       onViewHistory={props.onViewHistory ?? noop}

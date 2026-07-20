@@ -71,6 +71,11 @@ export default function TodayPage() {
     router.push("/workout/active");
   };
 
+  // Launch the standalone workout builder (ported from v1).
+  const handleBuildWorkout = () => {
+    router.push("/workout/builder");
+  };
+
   const openPreview = (dayIndex: number) => {
     setSwapOpen(false);
     setPreviewIndex(dayIndex);
@@ -143,6 +148,7 @@ export default function TodayPage() {
             stats={stats}
             todaySessions={todaySessions}
             onStartWorkout={handleStart}
+            onBuildWorkout={handleBuildWorkout}
             onPreview={openPreview}
             onSwap={() => setSwapOpen(true)}
             onViewHistory={() => router.push("/workouts")}
