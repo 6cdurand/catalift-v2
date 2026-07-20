@@ -9,11 +9,10 @@ export default function CommunityPage() {
     <div>
       <PageHeader title="Community" subtitle="Connect with others" />
       <EmptyState
-        icon={Users}
+        icon={<Users />}
         title="Community is coming soon"
         description="Find training partners, share progress, and connect with the Catalift community"
         variant="coming-soon"
-        accentColor="purple"
       />
     </div>
   );

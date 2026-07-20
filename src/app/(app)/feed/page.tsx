@@ -9,11 +9,10 @@ export default function FeedPage() {
     <div>
       <PageHeader title="Feed" subtitle="Activity from your community" />
       <EmptyState
-        icon={Rss}
+        icon={<Rss />}
         title="Your feed is coming soon"
         description="See workouts, PRs, and updates from your training community"
         variant="coming-soon"
-        accentColor="rose"
       />
     </div>
   );

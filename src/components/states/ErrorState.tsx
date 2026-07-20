@@ -1,34 +1,57 @@
-/**
- * ErrorState — Shared error state component.
- * Phase-2 Lane 1: Reusable error display.
- */
+import * as React from "react";
+import { TriangleAlert } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
-import { AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-
-interface ErrorStateProps {
+interface ErrorStateProps extends React.ComponentProps<"div"> {
   title?: string;
-  message?: string;
+  description?: string;
+  /** When provided, renders a retry button wired to this handler. */
   onRetry?: () => void;
+  retryLabel?: string;
 }
 
-export function ErrorState({
-  title = 'Something went wrong',
-  message = 'Please try again or contact support if the problem persists.',
+/**
+ * Shared error state — alert icon, message, optional retry.
+ * Presentation only: callers own the error handling; this only renders it.
+ */
+function ErrorState({
+  title = "Something went wrong",
+  description,
   onRetry,
+  retryLabel = "Try again",
+  className,
+  ...props
 }: ErrorStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[400px] px-6 py-12">
-      <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-4">
-        <AlertCircle className="w-8 h-8 text-red-500" />
+    <div
+      data-slot="error-state"
+      role="alert"
+      className={cn(
+        "flex flex-col items-center justify-center px-6 py-12 text-center animate-fade-in-up",
+        className,
+      )}
+      {...props}
+    >
+      <div
+        aria-hidden="true"
+        className="mb-4 flex size-20 items-center justify-center rounded-full bg-red-500/10"
+      >
+        <TriangleAlert className="size-10 text-red-500" />
       </div>
-      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">{title}</h3>
-      <p className="text-sm text-gray-500 text-center max-w-sm mb-6">{message}</p>
+      <h3 className="text-heading text-foreground mb-2">{title}</h3>
+      {description && (
+        <p className="text-caption text-muted-foreground mb-4 max-w-xs">
+          {description}
+        </p>
+      )}
       {onRetry && (
-        <Button onClick={onRetry} variant="outline" size="sm">
-          Try again
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          {retryLabel}
         </Button>
       )}
     </div>
   );
 }
+
+export { ErrorState };

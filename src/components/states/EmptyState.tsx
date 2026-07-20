@@ -1,48 +1,62 @@
-/**
- * EmptyState — Shared empty state component for Feed/Community/etc.
- * Phase-2 Lane 1: Polished "coming soon" variant for unbuilt features.
- */
+import * as React from "react";
+import { cn } from "@/lib/utils";
 
-import { type LucideIcon } from 'lucide-react';
-
-interface EmptyStateProps {
-  icon: LucideIcon;
+interface EmptyStateProps extends React.ComponentProps<"div"> {
+  /** Icon rendered inside the muted circle (pass a lucide icon element). */
+  icon?: React.ReactNode;
   title: string;
   description?: string;
-  variant?: 'default' | 'coming-soon';
-  accentColor?: 'sky' | 'rose' | 'purple' | 'amber';
+  /** Optional call-to-action (e.g. a Button). */
+  action?: React.ReactNode;
+  /** Shows an "On the roadmap" badge for unbuilt features. */
+  variant?: "default" | "coming-soon";
 }
 
-export function EmptyState({
-  icon: Icon,
+/**
+ * Shared empty state — icon-in-circle, title, description, optional action.
+ * Presentation only: callers decide WHEN it shows; this decides HOW it looks.
+ */
+function EmptyState({
+  icon,
   title,
   description,
-  variant = 'default',
-  accentColor = 'sky',
+  action,
+  variant = "default",
+  className,
+  ...props
 }: EmptyStateProps) {
-  const accentClasses = {
-    sky: 'text-sky-500 bg-sky-50',
-    rose: 'text-rose-500 bg-rose-50',
-    purple: 'text-purple-500 bg-purple-50',
-    amber: 'text-amber-500 bg-amber-50',
-  };
-
-  const accent = accentClasses[accentColor];
-
   return (
-    <div className="flex flex-col items-center justify-center min-h-[400px] px-6 py-12">
-      <div className={`w-16 h-16 rounded-full ${accent} flex items-center justify-center mb-4`}>
-        <Icon className="w-8 h-8" />
-      </div>
-      <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center">{title}</h3>
-      {description && (
-        <p className="text-sm text-gray-500 text-center max-w-sm">{description}</p>
+    <div
+      data-slot="empty-state"
+      role="status"
+      className={cn(
+        "flex flex-col items-center justify-center px-6 py-12 text-center animate-fade-in-up",
+        className,
       )}
-      {variant === 'coming-soon' && (
-        <div className="mt-6 px-4 py-2 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-400 text-center">On the roadmap</p>
+      {...props}
+    >
+      {icon && (
+        <div
+          aria-hidden="true"
+          className="mb-4 flex size-20 items-center justify-center rounded-full bg-muted [&_svg]:size-10 [&_svg]:text-muted-foreground"
+        >
+          {icon}
         </div>
       )}
+      <h3 className="text-heading text-muted-foreground mb-2">{title}</h3>
+      {description && (
+        <p className="text-caption text-muted-foreground/80 mb-4 max-w-xs">
+          {description}
+        </p>
+      )}
+      {variant === "coming-soon" && (
+        <div className="mt-2 px-4 py-1.5 rounded-full bg-muted/60">
+          <p className="text-xs text-muted-foreground/60">On the roadmap</p>
+        </div>
+      )}
+      {action}
     </div>
   );
 }
+
+export { EmptyState };

@@ -62,14 +62,14 @@ export default function WorkoutDetailPage({ params }: PageProps) {
   }, [id, user?.id]);
 
   if (loading) {
-    return <LoadingState message="Loading workout..." />;
+    return <LoadingState label="Loading workout..." />;
   }
 
   if (error || !workout) {
     return (
       <ErrorState
         title="Unable to load workout"
-        message={error || "Workout not found"}
+        description={error || "Workout not found"}
         onRetry={() => router.push("/workouts")}
       />
     );
