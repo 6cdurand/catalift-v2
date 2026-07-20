@@ -103,7 +103,7 @@ export default function ClientDetailPage() {
     return (
       <div>
         <PageHeader title="Client" showBack />
-        <LoadingState message="Loading client…" />
+        <LoadingState label="Loading client…" />
       </div>
     );
   }
@@ -114,7 +114,7 @@ export default function ClientDetailPage() {
     return (
       <div>
         <PageHeader title="Client" showBack />
-        <LoadingState message="Loading client…" />
+        <LoadingState label="Loading client…" />
       </div>
     );
   }
@@ -125,7 +125,7 @@ export default function ClientDetailPage() {
         <PageHeader title="Client" showBack />
         <ErrorState
           title={error ?? "Client not found"}
-          message="This client may not be in your roster."
+          description="This client may not be in your roster."
           onRetry={() => router.push("/clients")}
         />
       </div>
