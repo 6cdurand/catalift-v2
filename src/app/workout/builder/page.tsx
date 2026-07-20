@@ -9,16 +9,23 @@
 // Query-param contract (preserved from v1):
 //   ?clientId=<id>   — preselect client
 //   ?workoutId=<id>  — edit existing workout (from workouts table)
-//   ?eventId=<id>    — calendar event link (FLAG: no scheduled_sessions seam in v2 yet)
 //
-// Class-B pieces flagged (NOT built):
-//   - Save to workout library (no workout_library table in v2)
-//   - Circuit library (no circuit_library table in v2)
-//   - Load from library (same)
+// Save: persists a single-session ClientProgram via assignProgramToClient (reuses
+// the same client_programs table + sanitize + persist pipeline as the program
+// builder). The built blocks become a single ProgramDay in weeklyPlan. After save,
+// the session appears on the target client's Today/Calendar via useScheduledSessions
+// → getNextProgramWorkout (the existing derivation path).
+//
+// COEXISTENCE NOTE: useActiveClientProgram and useScheduledSessions both select the
+// FIRST active program (programs.find(p => p.status === 'active')). If a client
+// already has an active multi-week program, assigning a one-off creates a second
+// active program — whichever comes first in the array wins on Today. This is flagged
+// as a follow-up; the common case (client with no active program) works cleanly.
+//
+// Not built (no tables in v2):
+//   - Workout library / circuit library (no workout_library / circuit_library tables)
 //   - Program selection dialog (cross-feature import; deferred)
 //   - Assignment type (one-time/weekly/program) — scheduling feature, not builder
-//   - Calendar event link (no scheduled_sessions / calendar_events table in v2)
-//   - Session workout save (no session_workouts table in v2; save is a no-op stub)
 
 import { useState, useMemo, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -55,6 +62,9 @@ import type { RosterClient } from '@/types/roster';
 import type { BlockType } from '@/types';
 import type { BuilderBlock, BuilderExercise } from '@/features/workout-engine/components/builder-types';
 import { getBrowserClient } from '@/lib/supabase';
+import { assignProgramToClient } from '@/features/programs/api/assign';
+import type { ClientProgram, ProgramBlock, ProgramExercise, MovementPattern } from '@/features/programs/types';
+import { useProgramsStore } from '@/features/programs/store';
 
 // ── Block ordering (ported from v1 L663-666) ──
 const BLOCK_ORDER: Record<BlockType, number> = {
@@ -104,8 +114,6 @@ function WorkoutBuilderContent() {
   const searchParams = useSearchParams();
   const clientId = searchParams.get('clientId');
   const workoutId = searchParams.get('workoutId');
-  // eventId is read but not sourced — no scheduled_sessions seam in v2 yet (FLAG)
-  const eventId = searchParams.get('eventId');
 
   const { user, loading: sessionLoading } = useSession();
 
@@ -298,17 +306,78 @@ function WorkoutBuilderContent() {
     }
   }
 
-  // ── Save (Class B — FLAG: no session_workouts table in v2) ──
-  // The v1 builder saved to trainerStore.addSessionWorkout + linked to calendar event.
-  // v2 has no session_workouts or calendar_events table. The save action shows a toast
-  // indicating the workout was built but persistence is not yet available.
-  function handleSave() {
-    if (blocks.length === 0) return;
-    // CLASS-B FLAG: Save to session_workouts table does not exist in v2 yet.
-    // This is a placeholder — the builder UI is complete but persistence requires
-    // a new table (Class B). Flagged in PR, not built.
-    toast.info('Workout builder is ready. Save to session requires a new table (Class B — flagged in PR).');
-    router.back();
+  // ── Save: persist as single-session ClientProgram via assignProgramToClient ──
+  // Reuses the same pipeline as the program builder: sanitize → upsert client_programs
+  // via persist (await + retry). The built blocks become a single ProgramDay.
+  const [saving, setSaving] = useState(false);
+  const upsertClientProgram = useProgramsStore((s) => s.upsertClientProgram);
+
+  async function handleSave() {
+    if (blocks.length === 0 || !selectedClientId || !user) return;
+
+    // Map BuilderBlock[] → ProgramBlock[] (same shape, just typed differently)
+    const programBlocks: ProgramBlock[] = blocks.map((b) => ({
+      id: b.id,
+      type: b.type as BlockType,
+      name: b.name,
+      exercises: b.exercises.map((e): ProgramExercise => ({
+        id: e.id,
+        exerciseId: e.exerciseId,
+        exerciseName: e.exerciseName,
+        movementPattern: e.movementPattern as MovementPattern,
+        sets: e.sets,
+        reps: e.reps,
+        rest: e.rest,
+        repType: e.repType,
+        setStyle: e.setStyle,
+        tempo: e.tempo,
+        notes: e.notes,
+      })),
+    }));
+
+    const todayISO = new Date().toISOString().split('T')[0];
+    const nowISO = new Date().toISOString();
+
+    const program: ClientProgram = {
+      id: crypto.randomUUID(),
+      clientId: selectedClientId,
+      trainerId: user.id,
+      name: workoutName || 'Custom Workout',
+      status: 'active',
+      phase: 'none',
+      goal: 'general_fitness',
+      weeklyPlan: [{
+        id: crypto.randomUUID(),
+        label: 'Session',
+        blocks: programBlocks,
+      }],
+      scheduleMode: 'flexible',
+      trainingDaysPerWeek: 1,
+      selectedDays: [],
+      cycleAcrossWeeks: false,
+      sessionPTMap: { 0: 'pt' },
+      nextWorkoutIndex: 0,
+      autoRepeat: false,
+      startDate: todayISO,
+      createdAt: nowISO,
+      updatedAt: nowISO,
+    };
+
+    setSaving(true);
+    try {
+      const result = await assignProgramToClient(program);
+      if (!result.ok) {
+        throw result.error;
+      }
+      upsertClientProgram(result.data);
+      toast.success('Workout assigned to client.');
+      router.back();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(`Failed to save workout: ${message}`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (sessionLoading || editLoading) {
@@ -429,16 +498,6 @@ function WorkoutBuilderContent() {
           )}
         </div>
 
-        {/* Event link info (FLAG: no scheduled_sessions seam in v2) */}
-        {eventId && (
-          <Card className="mb-4 bg-sky-50 border-sky-200">
-            <CardContent className="p-3">
-              <p className="text-xs text-sky-700">
-                <strong>Event link:</strong> eventId={eventId}. Calendar event linking is not yet available in v2 (no scheduled_sessions table). Flagged in PR.
-              </p>
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       {/* Fixed Action Bar (ported from v1 L1117-1157, light shell) */}
@@ -464,10 +523,10 @@ function WorkoutBuilderContent() {
             <Button
               onClick={handleSave}
               size="lg"
-              disabled={blocks.length === 0}
+              disabled={blocks.length === 0 || !selectedClientId || saving}
               className="flex-1 sm:flex-none bg-sky-500 hover:bg-sky-600 text-white"
             >
-              <Save className="h-4 w-4 mr-2" /> {isEditMode ? 'Update Workout' : 'Save Workout'}
+              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />} {isEditMode ? 'Update Workout' : 'Save Workout'}
             </Button>
           </div>
         </div>
