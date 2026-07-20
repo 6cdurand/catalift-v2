@@ -9,11 +9,10 @@ export default function HomePage() {
     <div>
       <PageHeader title="Home" />
       <EmptyState
-        icon={Home}
+        icon={<Home />}
         title="This page is under construction"
         description="Check out /today for your daily training overview"
         variant="coming-soon"
-        accentColor="sky"
       />
     </div>
   );

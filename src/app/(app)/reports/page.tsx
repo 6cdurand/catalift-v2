@@ -83,13 +83,12 @@ export default function ReportsPage() {
 
       <div className="px-5 py-4 space-y-4">
         {sessionLoading || loadingData ? (
-          <LoadingState message="Loading your weekly report…" />
+          <LoadingState label="Loading your weekly report…" />
         ) : report.totalWorkouts === 0 ? (
           <EmptyState
-            icon={Dumbbell}
+            icon={<Dumbbell />}
             title="No workouts this week"
             description="Complete a workout to see your weekly report with volume breakdown, consistency score, and personal bests."
-            accentColor="sky"
           />
         ) : (
           <>
