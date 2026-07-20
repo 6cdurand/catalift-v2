@@ -9,7 +9,7 @@ test.describe('Workout summary screen', () => {
     await page.goto('/workout/active');
   });
 
-  test('finish workout → summary appears → Done redirects to /workout', async ({ page }) => {
+  test('finish workout → summary appears → Done redirects to /workouts', async ({ page }) => {
     // Wait for workout to auto-start
     await page.waitForTimeout(2000);
 
@@ -45,7 +45,7 @@ test.describe('Workout summary screen', () => {
     const doneBtn = page.getByRole('button', { name: 'Done' });
     await expect(doneBtn).toBeVisible();
     await doneBtn.click({ force: true });
-    await page.waitForURL(/\/workout$/, { timeout: 10000 });
+    await page.waitForURL(/\/workouts$/, { timeout: 10000 });
   });
 
   test('summary shows AI Coach fallback for empty workout', async ({ page }) => {
@@ -58,10 +58,10 @@ test.describe('Workout summary screen', () => {
     await expect(page.locator('text=Workout Complete')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('text=AI Coach')).toBeVisible();
 
-    // Click Done → redirect to /workout (force: true — see comment in test above)
+    // Click Done → redirect to /workouts (force: true — see comment in test above)
     const doneBtn = page.getByRole('button', { name: 'Done' });
     await expect(doneBtn).toBeVisible();
     await doneBtn.click({ force: true });
-    await page.waitForURL(/\/workout$/, { timeout: 10000 });
+    await page.waitForURL(/\/workouts$/, { timeout: 10000 });
   });
 });
