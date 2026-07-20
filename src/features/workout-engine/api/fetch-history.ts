@@ -112,3 +112,69 @@ export async function fetchWorkoutHistoryWithBlocks(
 
   return (data as WorkoutRow[]).map(mapRowToHistoryBlocks);
 }
+
+/** A complete workout detail with all fields for the workout detail page. */
+export interface WorkoutDetail {
+  id: string;
+  name: string | null;
+  performedAt: string;
+  totalVolume: number;
+  totalSets: number;
+  blocks: WorkoutBlock[];
+  notes: string | null;
+}
+
+/** Map a raw `workouts` row to a WorkoutDetail. Pure — testable in isolation. */
+export function mapRowToWorkoutDetail(row: WorkoutRow): WorkoutDetail {
+  const blocks = Array.isArray(row.exercises)
+    ? (row.exercises as unknown as WorkoutBlock[])
+    : [];
+
+  let totalSets = 0;
+  for (const block of blocks) {
+    if (block.kind === "straight") {
+      totalSets += block.exercise.sets.filter((s) => s.completed).length;
+    } else if (block.kind === "superset") {
+      for (const ex of block.exercises) {
+        totalSets += ex.sets.filter((s) => s.completed).length;
+      }
+    } else if (block.kind === "circuit") {
+      for (const st of block.stations) {
+        totalSets += st.sets.filter((s) => s.completed).length;
+      }
+    }
+  }
+
+  return {
+    id: row.id,
+    name: row.name,
+    performedAt: row.performed_at,
+    totalVolume: row.total_volume,
+    totalSets,
+    blocks,
+    notes: row.notes,
+  };
+}
+
+/**
+ * Fetch a single workout by ID for the workout detail page.
+ * RLS governs access via auth.uid(). Read-only — no writes, no schema change.
+ */
+export async function fetchWorkoutById(
+  workoutId: string,
+): Promise<WorkoutDetail | null> {
+  const supabase = getBrowserClient();
+  const { data, error } = await supabase
+    .from("workouts")
+    .select("id, name, performed_at, exercises, total_volume, notes, user_id")
+    .eq("id", workoutId)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") return null; // Not found
+    throw error;
+  }
+  if (!data) return null;
+
+  return mapRowToWorkoutDetail(data as WorkoutRow);
+}

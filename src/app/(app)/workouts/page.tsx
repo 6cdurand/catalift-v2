@@ -24,9 +24,18 @@ function formatVolume(vol: number): string {
   return `${vol} kg`;
 }
 
-function WorkoutCard({ item }: { item: WorkoutHistoryItem }) {
+function WorkoutCard({
+  item,
+  onClick,
+}: {
+  item: WorkoutHistoryItem;
+  onClick: () => void;
+}) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+    <div
+      onClick={onClick}
+      className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm cursor-pointer hover:bg-gray-50 transition-colors"
+    >
       <div className="flex items-center justify-between">
         <div className="min-w-0">
           <p className="font-medium text-gray-900 truncate">
@@ -152,7 +161,11 @@ export default function WorkoutsPage() {
           {!isLoading && !error && history.length > 0 && (
             <div className="space-y-3">
               {history.map((item) => (
-                <WorkoutCard key={item.id} item={item} />
+                <WorkoutCard
+                  key={item.id}
+                  item={item}
+                  onClick={() => router.push(`/workout/${item.id}`)}
+                />
               ))}
             </div>
           )}
