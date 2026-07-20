@@ -7,7 +7,7 @@
 // / day-index math.
 
 import { Button } from "@/components/ui/button";
-import { Plus, History, Dumbbell } from "lucide-react";
+import { Plus, History, Dumbbell, PencilRuler } from "lucide-react";
 import type { ClientProgram, NextWorkoutResult } from "@/features/programs";
 import type { ScheduledSession } from "@/features/calendar";
 import { UpNextCard } from "@/features/programs/client/components/UpNextCard";
@@ -42,26 +42,38 @@ function SessionCard({ session }: { session: ScheduledSession }) {
 function QuickStart({
   onStartWorkout,
   onViewHistory,
+  onBuildWorkout,
 }: {
   onStartWorkout: () => void;
   onViewHistory: () => void;
+  onBuildWorkout: () => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <Button
-        className="h-auto py-6 bg-linear-to-br from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 flex flex-col items-center gap-2 rounded-2xl shadow-lg shadow-sky-500/20 text-white"
-        onClick={onStartWorkout}
-      >
-        <Plus className="w-6 h-6" />
-        <span className="font-bold text-sm">Start Workout</span>
-      </Button>
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <Button
+          className="h-auto py-6 bg-linear-to-br from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 flex flex-col items-center gap-2 rounded-2xl shadow-lg shadow-sky-500/20 text-white"
+          onClick={onStartWorkout}
+        >
+          <Plus className="w-6 h-6" />
+          <span className="font-bold text-sm">Start Workout</span>
+        </Button>
+        <Button
+          variant="outline"
+          className="h-auto py-6 bg-gray-50 border-gray-200 hover:bg-gray-100 flex flex-col items-center gap-2 rounded-2xl text-gray-700"
+          onClick={onViewHistory}
+        >
+          <History className="w-6 h-6 text-gray-400" />
+          <span className="font-semibold text-sm">History</span>
+        </Button>
+      </div>
       <Button
         variant="outline"
-        className="h-auto py-6 bg-gray-50 border-gray-200 hover:bg-gray-100 flex flex-col items-center gap-2 rounded-2xl text-gray-700"
-        onClick={onViewHistory}
+        className="w-full h-auto py-3 bg-white border-gray-200 hover:bg-gray-50 flex items-center justify-center gap-2 rounded-2xl text-gray-700"
+        onClick={onBuildWorkout}
       >
-        <History className="w-6 h-6 text-gray-400" />
-        <span className="font-semibold text-sm">History</span>
+        <PencilRuler className="w-5 h-5 text-sky-500" />
+        <span className="font-semibold text-sm">Build Workout</span>
       </Button>
     </div>
   );
@@ -74,6 +86,7 @@ export interface TodaySurfaceProps {
   stats: TodayStats;
   todaySessions: ScheduledSession[];
   onStartWorkout: () => void;
+  onBuildWorkout: () => void;
   onPreview: (dayIndex: number) => void;
   onSwap: () => void;
   onViewHistory: () => void;
@@ -86,6 +99,7 @@ export function TodaySurface({
   stats,
   todaySessions,
   onStartWorkout,
+  onBuildWorkout,
   onPreview,
   onSwap,
   onViewHistory,
@@ -114,7 +128,7 @@ export function TodaySurface({
       )}
 
       {/* Quick-start — same start flow the program page uses (/workout/active). */}
-      <QuickStart onStartWorkout={onStartWorkout} onViewHistory={onViewHistory} />
+      <QuickStart onStartWorkout={onStartWorkout} onBuildWorkout={onBuildWorkout} onViewHistory={onViewHistory} />
 
       {/* Stats row — this week's sessions / streak / sets / volume. */}
       <TodayStatsRow stats={stats} />
