@@ -733,7 +733,7 @@ export default function ActiveWorkoutPage() {
     // Only redirect after we've attempted to start a workout (avoids race where redirect fires before startWorkout)
     if (!loading && readyToRedirect) {
       if (redirect === 'auth') router.replace('/login');
-      if (redirect === 'workout') router.replace('/workout');
+      if (redirect === 'workout') router.replace('/workouts');
     }
   }, [redirect, router, loading, readyToRedirect]);
 
@@ -807,7 +807,7 @@ export default function ActiveWorkoutPage() {
         onClose={() => {
           setShowSummary(false);
           setSummaryData(null);
-          router.push('/workout');
+          router.push('/workouts');
         }}
       />
     );

@@ -85,7 +85,7 @@ export default function TodayPage() {
             onStartWorkout={handleStart}
             onPreview={openPreview}
             onSwap={() => setSwapOpen(true)}
-            onViewHistory={() => router.push("/workout/history")}
+            onViewHistory={() => router.push("/workouts")}
           />
         )}
 
