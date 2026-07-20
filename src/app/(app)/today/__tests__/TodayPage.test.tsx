@@ -10,6 +10,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/features/auth", () => ({
   useSession: () => ({ user: { id: "user-1" }, loading: false }),
+  useUserRole: () => ({ role: "client", loading: false }),
 }));
 
 const mockUseScheduledSessions = vi.fn();
@@ -25,6 +26,39 @@ vi.mock("@/features/programs", () => ({
 const mockUseTodayStats = vi.fn();
 vi.mock("@/app/(app)/today/useTodayStats", () => ({
   useTodayStats: () => mockUseTodayStats(),
+}));
+
+vi.mock("@/hooks/use-auth-user", () => ({
+  useAuthUser: () => ({
+    user: { id: "user-1", email: "test@test.com", mode: "user" },
+    isAuthenticated: true,
+  }),
+}));
+
+vi.mock("@/hooks/use-view-mode", () => ({
+  useViewModeStore: vi.fn((selector) =>
+    selector({
+      viewOverride: null,
+      setViewMode: vi.fn(),
+      resetViewMode: vi.fn(),
+    }),
+  ),
+}));
+
+vi.mock("@/app/(app)/today/useTrainerTodayData", () => ({
+  useTrainerTodayData: () => ({
+    clients: [],
+    stats: { active: 0, pending: 0, total: 0 },
+    recentCompletions: [],
+    isLoading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("@/app/(app)/today/TrainerTodaySurface", () => ({
+  TrainerTodaySurface: () => (
+    <div data-testid="trainer-surface">Trainer Surface</div>
+  ),
 }));
 
 vi.mock("@/components/layouts/MainLayout", () => ({
@@ -166,5 +200,103 @@ describe("TodayPage (F2 rich surface)", () => {
     // Rest day is shown as ONE section, not the whole page
     expect(screen.getByText("Rest Day")).toBeDefined();
     expect(screen.getByText("Scheduled sessions")).toBeDefined();
+  });
+});
+
+describe("TodayPage trainer mode", () => {
+  it("renders trainer surface when mode is trainer", async () => {
+    vi.resetModules();
+
+    vi.doMock("@/features/auth", () => ({
+      useSession: () => ({ user: { id: "trainer-1" }, loading: false }),
+      useUserRole: () => ({ role: "trainer", loading: false }),
+    }));
+    vi.doMock("@/hooks/use-auth-user", () => ({
+      useAuthUser: () => ({
+        user: { id: "trainer-1", email: "trainer@test.com", mode: "trainer" },
+        isAuthenticated: true,
+      }),
+    }));
+
+    mockUseScheduledSessions.mockReturnValue({
+      todaySessions: [],
+      today: "2026-07-19",
+      isLoading: false,
+      error: null,
+    });
+
+    mockUseActiveClientProgram.mockReturnValue({
+      activeProgram: null,
+      next: null,
+      completedDayIndices: [],
+      isLoading: false,
+      error: null,
+    });
+
+    mockUseTodayStats.mockReturnValue({
+      stats: {
+        weekStreak: 0,
+        sessionsThisWeek: 0,
+        volumeThisWeek: 0,
+        setsThisWeek: 0,
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { default: TodayPage } = await import("../page");
+    render(<TodayPage />);
+
+    expect(screen.getByTestId("trainer-surface")).toBeDefined();
+    expect(screen.queryByText("Up Next")).toBeNull();
+  });
+
+  it("renders athlete surface when mode is user", async () => {
+    vi.resetModules();
+
+    vi.doMock("@/features/auth", () => ({
+      useSession: () => ({ user: { id: "trainer-1" }, loading: false }),
+      useUserRole: () => ({ role: "trainer", loading: false }),
+    }));
+    vi.doMock("@/hooks/use-auth-user", () => ({
+      useAuthUser: () => ({
+        user: { id: "trainer-1", email: "trainer@test.com", mode: "user" },
+        isAuthenticated: true,
+      }),
+    }));
+
+    const program = makeProgram();
+
+    mockUseScheduledSessions.mockReturnValue({
+      todaySessions: [],
+      today: "2026-07-19",
+      isLoading: false,
+      error: null,
+    });
+
+    mockUseActiveClientProgram.mockReturnValue({
+      activeProgram: program,
+      next: nextFor(program),
+      completedDayIndices: [],
+      isLoading: false,
+      error: null,
+    });
+
+    mockUseTodayStats.mockReturnValue({
+      stats: {
+        weekStreak: 4,
+        sessionsThisWeek: 3,
+        volumeThisWeek: 12500,
+        setsThisWeek: 42,
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { default: TodayPage } = await import("../page");
+    render(<TodayPage />);
+
+    expect(screen.queryByTestId("trainer-surface")).toBeNull();
+    expect(screen.getByText("Up Next")).toBeDefined();
   });
 });
