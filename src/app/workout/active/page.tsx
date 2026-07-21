@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Heart, Flame, Dumbbell, Zap, Link2, Pause, Play } from 'lucide-react';
+import { Plus, Heart, Flame, Dumbbell, Zap, Link2, Pause, Play, ChevronDown, StickyNote, Timer } from 'lucide-react';
 import { exerciseLibrary, allExercises } from '@/lib/exercises';
 import {
   createAndPersistCustomExercise,
@@ -646,6 +646,10 @@ function SupersetPicker({
   );
 }
 
+// Blue photo header backdrop (v1 active header ~2919-3060). Athlete-context sky theme.
+const WORKOUT_HEADER_IMAGE =
+  'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&h=300&fit=crop&crop=center';
+
 function formatTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -682,6 +686,7 @@ export default function ActiveWorkoutPage() {
     updateCardio,
     finishWorkout,
     setPreviousBests,
+    setWorkoutNotes,
     startRestTimer,
     tickRestTimer,
     resetRestTimer,
@@ -691,6 +696,7 @@ export default function ActiveWorkoutPage() {
 
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [showAddCardio, setShowAddCardio] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const [showAddBlock, setShowAddBlock] = useState<'superset' | 'circuit' | false>(false);
   // Single "+" entry point → v1 2×2 block-type picker (AC #3).
   const [showBlockTypePicker, setShowBlockTypePicker] = useState(false);
@@ -842,6 +848,41 @@ export default function ActiveWorkoutPage() {
     )
     .filter((c): c is { entryId: string; name: string; setCount: number } => c !== null);
 
+  // Shared block-picker handlers (v1 active header ~2919-3060 controls + 2×2 picker
+  // ~545-572). Reused by both the Add: chip bar and the block-type picker modal.
+  const openStraightPicker = () => setShowAddExercise(true);
+  const openCircuitPicker = () => setShowAddBlock('circuit');
+  const openCardioPicker = () => setShowAddCardio(true);
+
+  // Sets done {completed}/{total} across ALL blocks (straight/superset/circuit;
+  // cardio has no logged sets). v1 active header counter (~2919-3060).
+  const setsProgress = (activeWorkout?.blocks ?? []).reduce(
+    (acc, block) => {
+      const entries =
+        block.kind === 'straight'
+          ? [block.exercise]
+          : block.kind === 'superset'
+            ? block.exercises
+            : block.kind === 'circuit'
+              ? block.stations
+              : [];
+      for (const entry of entries) {
+        for (const s of entry.sets) {
+          acc.total += 1;
+          if (s.completed) acc.completed += 1;
+        }
+      }
+      return acc;
+    },
+    { completed: 0, total: 0 },
+  );
+
+  // Rest control (v1 header pause/note/rest). Toggles the global 90s rest timer.
+  const toggleRestTimer = () => {
+    if (restTimer.isRunning) resetRestTimer();
+    else startRestTimer(90);
+  };
+
   const handleFinish = async () => {
     if (isFinishing) return;
     const durationSnapshot = workoutTimerSeconds;
@@ -872,34 +913,143 @@ export default function ActiveWorkoutPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header: workout name + timer + pause + finish button (B1: added pause) */}
-      <div className="sticky top-0 bg-white border-b border-gray-100 z-10">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div>
-            <p className="font-medium text-gray-900">
-              {activeWorkout?.name || 'Workout'}
-            </p>
-            <p className="text-xs text-gray-500">{formatTime(workoutTimerSeconds)}</p>
+      {/* Blue photo header panel (faithful port of v1 active header ~2919-3060):
+          Minimize · Duration · pause/note/rest · Sets done · Finish. */}
+      <div className="sticky top-0 z-20" data-testid="active-workout-header">
+        <div className="relative overflow-hidden px-4 pt-10 pb-4">
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${WORKOUT_HEADER_IMAGE})` }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-sky-600/90 via-sky-600/85 to-sky-700/95" />
+          <div className="relative">
+            {/* Top row: Minimize · name · Finish */}
+            <div className="flex items-center justify-between gap-2">
+              <button
+                onClick={() => router.push('/today')}
+                aria-label="Minimize workout"
+                title="Minimize"
+                className="p-2 -ml-1 rounded-xl bg-white/15 hover:bg-white/25 transition-colors backdrop-blur-sm"
+              >
+                <ChevronDown className="w-5 h-5 text-white" />
+              </button>
+              <p className="flex-1 min-w-0 text-center font-semibold text-white truncate">
+                {activeWorkout?.name || 'Workout'}
+              </p>
+              <Button
+                onClick={handleFinish}
+                disabled={isFinishing}
+                className="bg-white text-sky-600 hover:bg-white/90 font-semibold"
+              >
+                {isFinishing ? 'Saving...' : 'Finish'}
+              </Button>
+            </div>
+
+            {/* Duration */}
+            <div className="mt-3 text-center">
+              <p className="text-3xl font-bold text-white tabular-nums leading-none">
+                {formatTime(workoutTimerSeconds)}
+              </p>
+              <p className="mt-1 text-[11px] uppercase tracking-wide text-white/70">Duration</p>
+            </div>
+
+            {/* Controls: pause · note · rest */}
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <button
+                onClick={() => (timerRunning ? pauseWorkoutTimer() : resumeWorkoutTimer())}
+                title={timerRunning ? 'Pause workout' : 'Resume workout'}
+                aria-label={timerRunning ? 'Pause workout' : 'Resume workout'}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 transition-colors text-white text-sm backdrop-blur-sm"
+              >
+                {timerRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                {timerRunning ? 'Pause' : 'Resume'}
+              </button>
+              <button
+                onClick={() => setShowNotes((v) => !v)}
+                aria-label="Workout note"
+                aria-pressed={showNotes}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 transition-colors text-white text-sm backdrop-blur-sm"
+              >
+                <StickyNote className="w-4 h-4" />
+                Note
+              </button>
+              <button
+                onClick={toggleRestTimer}
+                aria-label="Rest timer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 transition-colors text-white text-sm backdrop-blur-sm"
+              >
+                <Timer className="w-4 h-4" />
+                {restTimer.isRunning
+                  ? `${Math.floor(restTimer.seconds / 60)}:${(restTimer.seconds % 60).toString().padStart(2, '0')}`
+                  : 'Rest'}
+              </button>
+            </div>
+
+            {/* Sets done counter */}
+            <div className="mt-3 text-center">
+              <span className="text-sm text-white/90" data-testid="sets-done-counter">
+                Sets done{' '}
+                <span className="font-bold text-white">
+                  {setsProgress.completed}/{setsProgress.total}
+                </span>
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* B1: Pause/Resume button (ported from v1) */}
-            <Button
-              onClick={() => (timerRunning ? pauseWorkoutTimer() : resumeWorkoutTimer())}
-              variant="ghost"
-              size="icon"
-              className="text-gray-500 hover:text-gray-700"
-              title={timerRunning ? 'Pause workout' : 'Resume workout'}
-            >
-              {timerRunning ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-            </Button>
-            <Button
-              onClick={handleFinish}
-              disabled={isFinishing}
-              className="bg-sky-500 text-white"
-            >
-              {isFinishing ? 'Saving...' : 'Finish'}
-            </Button>
+        </div>
+
+        {/* Note panel (v1 header note control) */}
+        {showNotes && (
+          <div className="bg-white border-b border-gray-100 px-4 py-3">
+            <Label htmlFor="workout-notes" className="text-xs text-gray-500">
+              Workout note
+            </Label>
+            <textarea
+              id="workout-notes"
+              value={activeWorkout?.notes ?? ''}
+              onChange={(e) => setWorkoutNotes(e.target.value)}
+              placeholder="How did this session feel?"
+              rows={2}
+              className="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+            />
           </div>
+        )}
+      </div>
+
+      {/* Add: coloured chip bar (faithful port of v1 active/page.tsx ~3100-3155),
+          wired to the same handlers as the 2×2 block-type picker. */}
+      <div className="border-b border-gray-100 px-4 py-3" data-testid="add-chip-bar">
+        <div className="flex items-center gap-2 overflow-x-auto">
+          <span className="shrink-0 text-xs font-medium text-gray-500">Add:</span>
+          <button
+            onClick={openStraightPicker}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-yellow-500/40 bg-yellow-500/10 px-3 py-1.5 text-sm font-medium text-yellow-600 hover:bg-yellow-500/20 transition-colors"
+          >
+            <Flame className="w-4 h-4" /> Warm-Up
+          </button>
+          <button
+            onClick={openStraightPicker}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-500/20 transition-colors"
+          >
+            <Dumbbell className="w-4 h-4" /> Strength
+          </button>
+          <button
+            onClick={openCircuitPicker}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-orange-500/40 bg-orange-500/10 px-3 py-1.5 text-sm font-medium text-orange-600 hover:bg-orange-500/20 transition-colors"
+          >
+            <Zap className="w-4 h-4" /> Circuit
+          </button>
+          <button
+            onClick={openCardioPicker}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-sm font-medium text-rose-600 hover:bg-rose-500/20 transition-colors"
+          >
+            <Heart className="w-4 h-4" /> Cardio
+          </button>
+          <button
+            onClick={openStraightPicker}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Add Exercise
+          </button>
         </div>
       </div>
 

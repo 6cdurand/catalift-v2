@@ -305,4 +305,18 @@ describe('active-workout-store', () => {
       }
     }
   });
+
+  it('setWorkoutNotes updates the active workout notes (header note control, PR A)', () => {
+    const { startWorkout, setWorkoutNotes } = useActiveWorkoutStore.getState();
+    startWorkout({ userId: 'user-123', name: 'Test' });
+    setWorkoutNotes('felt strong today');
+
+    expect(useActiveWorkoutStore.getState().activeWorkout?.notes).toBe('felt strong today');
+  });
+
+  it('setWorkoutNotes is a no-op when there is no active workout', () => {
+    const { setWorkoutNotes } = useActiveWorkoutStore.getState();
+    setWorkoutNotes('nothing to attach to');
+    expect(useActiveWorkoutStore.getState().activeWorkout).toBeNull();
+  });
 });
