@@ -8,15 +8,18 @@ function makeWorkout(): LoggedWorkout {
   const block: WorkoutBlock = {
     id: newId(),
     kind: "straight",
-    exercise: {
-      id: newId(),
-      exerciseId: newId(),
-      exerciseName: "Deadlift",
-      sets: [
-        { id: newId(), weight: 140, reps: 5, completed: true, setNumber: 1 },
-        { id: newId(), weight: 140, reps: 5, completed: true, setNumber: 2 },
-      ],
-    },
+    blockType: "strength",
+    exercises: [
+      {
+        id: newId(),
+        exerciseId: newId(),
+        exerciseName: "Deadlift",
+        sets: [
+          { id: newId(), weight: 140, reps: 5, completed: true, setNumber: 1 },
+          { id: newId(), weight: 140, reps: 5, completed: true, setNumber: 2 },
+        ],
+      },
+    ],
   };
   return {
     id: newId(),

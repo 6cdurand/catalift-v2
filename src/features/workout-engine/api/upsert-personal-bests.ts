@@ -40,9 +40,11 @@ export async function upsertPersonalBests(
   const exerciseNames = new Map<string, string>();
   for (const block of completed.blocks) {
     if (block.kind === 'straight') {
-      const normId = normalizeExerciseId(block.exercise.exerciseId);
-      if (!exerciseNames.has(normId)) {
-        exerciseNames.set(normId, block.exercise.exerciseName);
+      for (const ex of block.exercises) {
+        const normId = normalizeExerciseId(ex.exerciseId);
+        if (!exerciseNames.has(normId)) {
+          exerciseNames.set(normId, ex.exerciseName);
+        }
       }
     } else if (block.kind === 'superset') {
       for (const ex of block.exercises) {
@@ -138,25 +140,27 @@ function extractExercisesFromBlocks(blocks: WorkoutBlock[]): WorkoutExercise[] {
 
   for (const block of blocks) {
     if (block.kind === 'straight') {
-      exercises.push({
-        id: `ex-${exerciseIndex++}`,
-        exerciseId: block.exercise.exerciseId,
-        exercise: {
-          id: block.exercise.exerciseId,
-          name: block.exercise.exerciseName,
-        } as Exercise,
-        sets: block.exercise.sets.map(
-          (s, idx): WorkoutSet => ({
-            id: `set-${exerciseIndex}-${idx}`,
-            setNumber: idx + 1,
-            type: 'normal',
-            completed: s.completed,
-            weight: s.weight ?? undefined,
-            reps: s.reps ?? undefined,
-          }),
-        ),
-        restTimerSeconds: 90,
-      });
+      for (const ex of block.exercises) {
+        exercises.push({
+          id: `ex-${exerciseIndex++}`,
+          exerciseId: ex.exerciseId,
+          exercise: {
+            id: ex.exerciseId,
+            name: ex.exerciseName,
+          } as Exercise,
+          sets: ex.sets.map(
+            (s, idx): WorkoutSet => ({
+              id: `set-${exerciseIndex}-${idx}`,
+              setNumber: idx + 1,
+              type: 'normal',
+              completed: s.completed,
+              weight: s.weight ?? undefined,
+              reps: s.reps ?? undefined,
+            }),
+          ),
+          restTimerSeconds: 90,
+        });
+      }
     } else if (block.kind === 'superset') {
       for (const ex of block.exercises) {
         exercises.push({

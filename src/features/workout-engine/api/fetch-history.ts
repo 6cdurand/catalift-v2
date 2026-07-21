@@ -5,6 +5,7 @@
 import { getBrowserClient } from "@/lib/supabase";
 import type { Database } from "@/types/database";
 import type { WorkoutBlock } from "../types";
+import { upgradeBlocks } from "../lib/serialize";
 
 type WorkoutRow = Database["public"]["Tables"]["workouts"]["Row"];
 
@@ -22,14 +23,14 @@ export interface WorkoutHistoryItem {
  * Pure function — no Supabase import, testable in isolation.
  */
 export function mapRowToHistoryItem(row: WorkoutRow): WorkoutHistoryItem {
-  const blocks = Array.isArray(row.exercises)
-    ? (row.exercises as unknown as WorkoutBlock[])
-    : [];
+  const blocks = upgradeBlocks(row.exercises);
 
   let totalSets = 0;
   for (const block of blocks) {
     if (block.kind === "straight") {
-      totalSets += block.exercise.sets.filter((s) => s.completed).length;
+      for (const ex of block.exercises) {
+        totalSets += ex.sets.filter((s) => s.completed).length;
+      }
     } else if (block.kind === "superset") {
       for (const ex of block.exercises) {
         totalSets += ex.sets.filter((s) => s.completed).length;
@@ -84,9 +85,7 @@ export function mapRowToHistoryBlocks(row: WorkoutRow): WorkoutHistoryBlocks {
   return {
     id: row.id,
     performedAt: row.performed_at,
-    blocks: Array.isArray(row.exercises)
-      ? (row.exercises as unknown as WorkoutBlock[])
-      : [],
+    blocks: upgradeBlocks(row.exercises),
   };
 }
 
@@ -126,14 +125,14 @@ export interface WorkoutDetail {
 
 /** Map a raw `workouts` row to a WorkoutDetail. Pure — testable in isolation. */
 export function mapRowToWorkoutDetail(row: WorkoutRow): WorkoutDetail {
-  const blocks = Array.isArray(row.exercises)
-    ? (row.exercises as unknown as WorkoutBlock[])
-    : [];
+  const blocks = upgradeBlocks(row.exercises);
 
   let totalSets = 0;
   for (const block of blocks) {
     if (block.kind === "straight") {
-      totalSets += block.exercise.sets.filter((s) => s.completed).length;
+      for (const ex of block.exercises) {
+        totalSets += ex.sets.filter((s) => s.completed).length;
+      }
     } else if (block.kind === "superset") {
       for (const ex of block.exercises) {
         totalSets += ex.sets.filter((s) => s.completed).length;

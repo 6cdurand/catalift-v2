@@ -64,8 +64,22 @@ export interface CardioPayload {
   maxHr?: number;
 }
 
+/**
+ * Straight-block sub-type (v1 parity). A straight block is a TYPED, multi-exercise
+ * container (v1 active/page.tsx block.type): warm-up / strength / cool-down. Adding an
+ * exercise to the block inherits this type (no prompt). Circuit + cardio remain their
+ * own block kinds. Legacy rows written before this change carried a single `exercise`
+ * and no `blockType`; serialize.upgradeBlocks() upgrades them to `blockType:"strength"`.
+ */
+export type StraightBlockType = "warmup" | "strength" | "cooldown";
+
 export type WorkoutBlock =
-  | { id: string; kind: "straight"; exercise: ExerciseEntry }
+  | {
+      id: string;
+      kind: "straight";
+      blockType: StraightBlockType;
+      exercises: ExerciseEntry[];
+    }
   | { id: string; kind: "superset"; exercises: ExerciseEntry[] }
   | {
       id: string;

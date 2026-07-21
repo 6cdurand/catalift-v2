@@ -32,7 +32,7 @@ function entry(sets: LoggedSet[]): ExerciseEntry {
 }
 
 function straight(e: ExerciseEntry): WorkoutBlock {
-  return { id: newId(), kind: "straight", exercise: e };
+  return { id: newId(), kind: "straight", blockType: "strength", exercises: [e] };
 }
 
 const cardio: CardioPayload = { durationSeconds: 1200, distanceMeters: 5000 };

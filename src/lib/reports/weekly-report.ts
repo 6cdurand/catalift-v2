@@ -53,7 +53,7 @@ function emptyMuscleMap(): Record<MuscleGroup, number> {
 }
 
 function entriesOf(block: WorkoutBlock): ExerciseEntry[] {
-  if (block.kind === "straight") return [block.exercise];
+  if (block.kind === "straight") return block.exercises;
   if (block.kind === "superset") return block.exercises;
   if (block.kind === "circuit") return block.stations;
   return [];

@@ -31,7 +31,7 @@ function sumEntry(e: ExerciseEntry): number {
 export function computeBlockVolume(block: WorkoutBlock): number {
   switch (block.kind) {
     case "straight":
-      return sumEntry(block.exercise);
+      return block.exercises.reduce((a, e) => a + sumEntry(e), 0);
     case "superset":
       return block.exercises.reduce((a, e) => a + sumEntry(e), 0);
     case "circuit":

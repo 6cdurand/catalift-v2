@@ -18,12 +18,15 @@ describe("ids — G-10 uuid guard", () => {
     const block: WorkoutBlock = {
       id: newId(),
       kind: "straight",
-      exercise: {
-        id: newId(),
-        exerciseId: newId(),
-        exerciseName: "Squat",
-        sets: [{ id: "local-set-1", weight: 100, reps: 5, completed: true, setNumber: 1 }],
-      },
+      blockType: "strength",
+      exercises: [
+        {
+          id: newId(),
+          exerciseId: newId(),
+          exerciseName: "Squat",
+          sets: [{ id: "local-set-1", weight: 100, reps: 5, completed: true, setNumber: 1 }],
+        },
+      ],
     };
     expect(() =>
       assertValidWorkout({ id: newId(), blocks: [block] }),

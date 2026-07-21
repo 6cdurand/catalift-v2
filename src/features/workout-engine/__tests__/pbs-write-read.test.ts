@@ -25,18 +25,21 @@ function block(exerciseId: string, exerciseName: string, sets: Array<{ weight: n
   return {
     id: `block-${exerciseId}`,
     kind: 'straight',
-    exercise: {
-      id: `ex-${exerciseId}`,
-      exerciseId,
-      exerciseName,
-      sets: sets.map((s, i) => ({
-        id: `set-${i}`,
-        setNumber: i + 1,
-        weight: s.weight,
-        reps: s.reps,
-        completed: true,
-      })),
-    },
+    blockType: 'strength',
+    exercises: [
+      {
+        id: `ex-${exerciseId}`,
+        exerciseId,
+        exerciseName,
+        sets: sets.map((s, i) => ({
+          id: `set-${i}`,
+          setNumber: i + 1,
+          weight: s.weight,
+          reps: s.reps,
+          completed: true,
+        })),
+      },
+    ],
   };
 }
 

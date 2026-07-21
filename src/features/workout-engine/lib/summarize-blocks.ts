@@ -128,9 +128,15 @@ export function computeSummaryData(
   const blocksSummary = summarizeBlocks(workout.blocks);
   const blocks = blocksToMemorySnapshots(workout.blocks);
 
-  const exercises = workout.blocks.filter(b => b.kind !== 'cardio').length;
+  // Count actual exercises (a straight block is now a multi-exercise container), not blocks.
+  const exercises = workout.blocks.reduce((sum, b) => {
+    if (b.kind === 'straight') return sum + b.exercises.length;
+    if (b.kind === 'superset') return sum + b.exercises.length;
+    if (b.kind === 'circuit') return sum + b.stations.length;
+    return sum; // cardio counted separately in blocksSummary
+  }, 0);
   const sets = workout.blocks.reduce((sum, b) => {
-    if (b.kind === 'straight') return sum + b.exercise.sets.filter(s => s.completed).length;
+    if (b.kind === 'straight') return sum + b.exercises.reduce((s, e) => s + e.sets.filter(x => x.completed).length, 0);
     if (b.kind === 'superset') return sum + b.exercises.reduce((s, e) => s + e.sets.filter(x => x.completed).length, 0);
     if (b.kind === 'circuit') return sum + b.stations.reduce((s, e) => s + e.sets.filter(x => x.completed).length, 0);
     return sum;

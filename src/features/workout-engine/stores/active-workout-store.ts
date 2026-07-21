@@ -5,7 +5,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { StateStorage } from 'zustand/middleware';
-import type { LoggedWorkout, WorkoutBlock, LoggedSet, CardioPayload, ExerciseEntry, DropSet } from '../types';
+import type { LoggedWorkout, WorkoutBlock, LoggedSet, CardioPayload, ExerciseEntry, DropSet, StraightBlockType } from '../types';
 import { newId } from '../lib/ids';
 import { computeTotalVolume } from '../lib/volume';
 import { toRow } from '../lib/serialize';
@@ -13,7 +13,7 @@ import { persist as persistWorkout } from '../api/persist';
 import { getIdbItem, setIdbItem, removeIdbItem } from '@/lib/storage';
 
 export function entriesOfBlock(block: WorkoutBlock): ExerciseEntry[] {
-  if (block.kind === 'straight') return [block.exercise];
+  if (block.kind === 'straight') return block.exercises;
   if (block.kind === 'superset') return block.exercises;
   if (block.kind === 'circuit') return block.stations;
   return []; // cardio has no entries
@@ -26,10 +26,11 @@ function mapEntry(
 ): WorkoutBlock[] {
   return blocks.map((block) => {
     if (block.kind === 'straight') {
-      if (block.exercise.id === entryId) {
-        return { ...block, exercise: fn(block.exercise) };
-      }
-      return block;
+      const idx = block.exercises.findIndex((e) => e.id === entryId);
+      if (idx === -1) return block;
+      const exercises = [...block.exercises];
+      exercises[idx] = fn(exercises[idx]);
+      return { ...block, exercises };
     }
     if (block.kind === 'superset') {
       const idx = block.exercises.findIndex((e) => e.id === entryId);
@@ -64,6 +65,9 @@ interface ActiveWorkoutState {
   timerRunning: boolean;
   isFinishing: boolean;
   hasHydrated: boolean;
+  // v1-parity active-block model: the straight block that in-block/add-bar "Add Exercise"
+  // targets. addBlock() sets it; addExercise() appends to it (inheriting blockType).
+  activeBlockId: string | null;
   // Previous-set display (Wave: workout-fidelity). Seeded from fetch-history on the
   // active page; NOT persisted (see partialize) so it never leaks across accounts.
   previousByExerciseId: PreviousBestMap;
@@ -75,6 +79,10 @@ interface ActiveWorkoutState {
   setPreviousBests: (map: PreviousBestMap) => void;
   cancelWorkout: () => void;
   finishWorkout: () => Promise<LoggedWorkout | null>;
+
+  // v1-parity block model: create an empty typed straight block + make it active.
+  addBlock: (blockType: StraightBlockType) => void;
+  setActiveBlock: (blockId: string | null) => void;
 
   // Exercise actions (operate on blocks)
   addExercise: (exercise: { exerciseId: string; exerciseName: string }) => void;
@@ -132,10 +140,13 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
       timerRunning: false,
       isFinishing: false,
       hasHydrated: false,
+      activeBlockId: null,
       previousByExerciseId: {},
       restTimer: { isRunning: false, seconds: 0 }, // B1
 
       setPreviousBests: (map) => set({ previousByExerciseId: map }),
+
+      setActiveBlock: (blockId) => set({ activeBlockId: blockId }),
 
       startWorkout: ({ userId, name }) => {
         set({
@@ -150,6 +161,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
           },
           workoutTimerSeconds: 0,
           timerRunning: true,
+          activeBlockId: null,
         });
       },
 
@@ -159,6 +171,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
           workoutTimerSeconds: 0,
           timerRunning: false,
           isFinishing: false,
+          activeBlockId: null,
         });
       },
 
@@ -182,6 +195,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
             workoutTimerSeconds: 0,
             timerRunning: false,
             isFinishing: false,
+            activeBlockId: null,
           });
           return final;
         } else {
@@ -191,22 +205,69 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         }
       },
 
-      addExercise: ({ exerciseId, exerciseName }) => {
+      // v1 addBlock (active/page.tsx:1030-1103): create an empty TYPED straight block,
+      // append it, and make it the active block so the next addExercise lands inside it.
+      // The picker is opened by the caller (page) — the store only owns state.
+      addBlock: (blockType) => {
         const { activeWorkout } = get();
         if (!activeWorkout) return;
 
         const newBlock: WorkoutBlock = {
           id: newId(),
           kind: 'straight',
-          exercise: {
-            id: newId(),
-            exerciseId,
-            exerciseName,
-            sets: [],
-            notes: undefined,
-          },
+          blockType,
+          exercises: [],
         };
 
+        set({
+          activeWorkout: {
+            ...activeWorkout,
+            blocks: [...activeWorkout.blocks, newBlock],
+          },
+          activeBlockId: newBlock.id,
+        });
+      },
+
+      // v1 handleAddExercise (active/page.tsx:942-971): append the exercise to the ACTIVE
+      // straight block (inheriting its blockType — no prompt). If no active straight block
+      // exists (e.g. very first add), create a default 'strength' block to hold it.
+      addExercise: ({ exerciseId, exerciseName }) => {
+        const { activeWorkout, activeBlockId } = get();
+        if (!activeWorkout) return;
+
+        const newEntry: ExerciseEntry = {
+          id: newId(),
+          exerciseId,
+          exerciseName,
+          sets: [],
+          notes: undefined,
+        };
+
+        const targetIdx = activeWorkout.blocks.findIndex(
+          (b) => b.id === activeBlockId && b.kind === 'straight',
+        );
+
+        if (targetIdx !== -1) {
+          const target = activeWorkout.blocks[targetIdx];
+          if (target.kind !== 'straight') return;
+          const updated = { ...target, exercises: [...target.exercises, newEntry] };
+          const blocks = [...activeWorkout.blocks];
+          blocks[targetIdx] = updated;
+          set({ activeWorkout: { ...activeWorkout, blocks } });
+          return;
+        }
+
+        // No active straight block → create a default 'strength' container (v1 fallback).
+        // Deliberately does NOT set activeBlockId sticky: a bare addExercise (no block
+        // chosen) behaves like the pre-parity "one block per exercise" quick-add. The
+        // in-block / add-bar flows set the active block first (addBlock/setActiveBlock),
+        // so those append into the same container.
+        const newBlock: WorkoutBlock = {
+          id: newId(),
+          kind: 'straight',
+          blockType: 'strength',
+          exercises: [newEntry],
+        };
         set({
           activeWorkout: {
             ...activeWorkout,
@@ -225,7 +286,11 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
             blocks: activeWorkout.blocks
               .map((block) => {
                 if (block.kind === 'straight') {
-                  return block.exercise.id === entryId ? null : block;
+                  const exercises = block.exercises.filter((e) => e.id !== entryId);
+                  if (exercises.length === block.exercises.length) return block;
+                  // Drop the block once its last exercise is removed (matches superset/circuit).
+                  if (exercises.length < 1) return null;
+                  return { ...block, exercises };
                 }
                 if (block.kind === 'superset') {
                   const exercises = block.exercises.filter((e) => e.id !== entryId);
@@ -488,40 +553,60 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
 
       // Faithful port of v1 handleCreateSuperset (active/page.tsx:1336). v1 tagged two flat
       // exercises with a shared groupId; the v2 block model represents a superset as a
-      // first-class block, so we MERGE the two source/target straight blocks into one
-      // superset block, preserving the source block's position (parity: a trainer-authored
-      // superset renders identically). No-op unless BOTH entries are in straight blocks.
+      // first-class block. Straight blocks are now multi-exercise containers, so we PULL the
+      // two chosen exercises out of their straight block(s), drop any now-empty straight
+      // block, and insert a new superset block where the first affected block sat (parity:
+      // a trainer-authored superset renders identically). No-op unless BOTH entries live in
+      // straight blocks.
       createSuperset: (sourceEntryId, targetEntryId) => {
         const { activeWorkout } = get();
         if (!activeWorkout) return;
         if (sourceEntryId === targetEntryId) return;
 
         const blocks = activeWorkout.blocks;
-        const srcIdx = blocks.findIndex(
-          (b) => b.kind === 'straight' && b.exercise.id === sourceEntryId,
-        );
-        const tgtIdx = blocks.findIndex(
-          (b) => b.kind === 'straight' && b.exercise.id === targetEntryId,
-        );
-        if (srcIdx === -1 || tgtIdx === -1 || srcIdx === tgtIdx) return;
 
-        const srcBlock = blocks[srcIdx];
-        const tgtBlock = blocks[tgtIdx];
-        if (srcBlock.kind !== 'straight' || tgtBlock.kind !== 'straight') return;
+        const findEntry = (id: string): ExerciseEntry | undefined => {
+          for (const b of blocks) {
+            if (b.kind !== 'straight') continue;
+            const e = b.exercises.find((x) => x.id === id);
+            if (e) return e;
+          }
+          return undefined;
+        };
+
+        const srcEntry = findEntry(sourceEntryId);
+        const tgtEntry = findEntry(targetEntryId);
+        if (!srcEntry || !tgtEntry) return;
 
         const supersetBlock: WorkoutBlock = {
           id: newId(),
           kind: 'superset',
-          exercises: [srcBlock.exercise, tgtBlock.exercise],
+          exercises: [srcEntry, tgtEntry],
         };
 
+        // Rebuild the block list: strip the two entries from straight blocks (dropping any
+        // block left empty), remembering where the first affected block was so we can splice
+        // the new superset back in at that spot.
+        let insertionIndex = -1;
+        const rebuilt: WorkoutBlock[] = [];
+        for (const b of blocks) {
+          if (b.kind === 'straight') {
+            const remaining = b.exercises.filter(
+              (e) => e.id !== sourceEntryId && e.id !== targetEntryId,
+            );
+            if (remaining.length !== b.exercises.length && insertionIndex === -1) {
+              insertionIndex = rebuilt.length; // first block that lost an exercise
+            }
+            if (remaining.length > 0) rebuilt.push({ ...b, exercises: remaining });
+            continue;
+          }
+          rebuilt.push(b);
+        }
+        if (insertionIndex === -1) insertionIndex = rebuilt.length;
+        rebuilt.splice(insertionIndex, 0, supersetBlock);
+
         set({
-          activeWorkout: {
-            ...activeWorkout,
-            blocks: blocks
-              .map((b, i) => (i === srcIdx ? supersetBlock : b))
-              .filter((_, i) => i !== tgtIdx),
-          },
+          activeWorkout: { ...activeWorkout, blocks: rebuilt },
         });
       },
 
@@ -629,6 +714,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         workoutTimerSeconds: state.workoutTimerSeconds,
         timerRunning: state.timerRunning,
         restTimer: state.restTimer, // B1: persist rest timer
+        activeBlockId: state.activeBlockId, // keep in-block "Add Exercise" target across reloads
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

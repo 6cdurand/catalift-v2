@@ -826,21 +826,25 @@ export default function ActiveWorkoutPage() {
   // Superset creation (v1 :1336): open the picker seeded with the source straight exercise.
   const handleOpenSupersetPicker = (entryId: string) => {
     const block = activeWorkout?.blocks.find(
-      (b) => b.kind === 'straight' && b.exercise.id === entryId,
+      (b) => b.kind === 'straight' && b.exercises.some((e) => e.id === entryId),
     );
     if (block?.kind === 'straight') {
-      setSupersetSource({ entryId, name: block.exercise.exerciseName });
+      const entry = block.exercises.find((e) => e.id === entryId);
+      if (entry) {
+        setSupersetSource({ entryId, name: entry.exerciseName });
+      }
     }
   };
 
   // Other standalone straight exercises the source can pair with (v1 :6027 filter).
   const supersetCandidates = (activeWorkout?.blocks ?? [])
-    .map((b) =>
-      b.kind === 'straight' && b.exercise.id !== supersetSource?.entryId
-        ? { entryId: b.exercise.id, name: b.exercise.exerciseName, setCount: b.exercise.sets.length }
-        : null,
-    )
-    .filter((c): c is { entryId: string; name: string; setCount: number } => c !== null);
+    .flatMap((b) =>
+      b.kind === 'straight'
+        ? b.exercises
+            .filter((e) => e.id !== supersetSource?.entryId)
+            .map((e) => ({ entryId: e.id, name: e.exerciseName, setCount: e.sets.length }))
+        : [],
+    );
 
   const handleFinish = async () => {
     if (isFinishing) return;
@@ -908,21 +912,25 @@ export default function ActiveWorkoutPage() {
         {activeWorkout?.blocks.map((block) => {
           if (block.kind === 'straight') {
             return (
-              <ExerciseCard
-                key={block.id}
-                entry={block.exercise}
-                onAddSet={addSet}
-                onUpdateSet={updateSet}
-                onCompleteSet={handleCompleteSet}
-                onUncompleteSet={uncompleteSet}
-                onRemoveSet={removeSet}
-                onRemoveExercise={removeExercise}
-                onCreateSuperset={handleOpenSupersetPicker}
-                onAddDropSet={addDropSet}
-                onUpdateDrop={updateDrop}
-                onRemoveDrop={removeDrop}
-                restTimers={setRestTimers}
-              />
+              <div key={block.id}>
+                {block.exercises.map((entry) => (
+                  <ExerciseCard
+                    key={entry.id}
+                    entry={entry}
+                    onAddSet={addSet}
+                    onUpdateSet={updateSet}
+                    onCompleteSet={handleCompleteSet}
+                    onUncompleteSet={uncompleteSet}
+                    onRemoveSet={removeSet}
+                    onRemoveExercise={removeExercise}
+                    onCreateSuperset={handleOpenSupersetPicker}
+                    onAddDropSet={addDropSet}
+                    onUpdateDrop={updateDrop}
+                    onRemoveDrop={removeDrop}
+                    restTimers={setRestTimers}
+                  />
+                ))}
+              </div>
             );
           }
           if (block.kind === 'cardio') {

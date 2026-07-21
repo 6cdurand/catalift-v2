@@ -84,7 +84,7 @@ describe('active-workout-store — cardio actions (w2c)', () => {
       const state2 = useActiveWorkoutStore.getState();
       const straightBlock = state2.activeWorkout?.blocks.find((b) => b.kind === 'straight');
       if (straightBlock?.kind === 'straight') {
-        expect(straightBlock.exercise.exerciseName).toBe('Squat'); // unchanged
+        expect(straightBlock.exercises[0].exerciseName).toBe('Squat'); // unchanged
       }
     }
   });
@@ -175,13 +175,13 @@ describe('active-workout-store — cardio actions (w2c)', () => {
     const state1 = useActiveWorkoutStore.getState();
     const straightBlock = state1.activeWorkout?.blocks.find((b) => b.kind === 'straight');
     if (straightBlock?.kind === 'straight') {
-      const entryId = straightBlock.exercise.id;
+      const entryId = straightBlock.exercises[0].id;
       addSet(entryId);
 
       const state2 = useActiveWorkoutStore.getState();
       const block2 = state2.activeWorkout?.blocks.find((b) => b.kind === 'straight');
       if (block2?.kind === 'straight') {
-        const setId = block2.exercise.sets[0].id;
+        const setId = block2.exercises[0].sets[0].id;
         updateSet(entryId, setId, { weight: 100, reps: 10 });
         completeSet(entryId, setId);
 
