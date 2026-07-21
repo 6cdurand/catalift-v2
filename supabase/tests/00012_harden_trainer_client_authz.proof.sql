@@ -132,6 +132,69 @@ begin
   end if;
   raise notice 'PASS 5: trainer edits historical_offset_sessions on active link';
 
+  -- ========================================================
+  -- 6. Link identity is immutable. A party to a link cannot
+  --    repoint it at a third user to gain a read connection.
+  --    (Seed a fresh PENDING link A->B, then A attempts to
+  --    repoint client_id at victim C, and B attempts to
+  --    repoint trainer_id at victim C — both must be rejected,
+  --    and A must still not read C.)
+  -- ========================================================
+  insert into auth.users (id, email)
+  values ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'victim-c@proof.test')
+  on conflict (id) do nothing;
+  insert into public.users (id, email, role)
+  values ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'victim-c@proof.test', 'client')
+  on conflict (id) do nothing;
+  insert into public.personal_bests (user_id, exercise_id, value)
+  values ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'squat', 200)
+  on conflict do nothing;
+
+  perform pg_temp.login(a);
+  insert into public.trainer_clients (trainer_id, client_id, status)
+  values (a, b, 'pending')
+  returning id into link_id;
+
+  -- Trainer A repoints client_id at victim C -> rejected.
+  failed := false;
+  begin
+    update public.trainer_clients
+      set client_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
+    where id = link_id;
+  exception when others then
+    failed := true;
+  end;
+  if not failed then
+    raise exception 'FAIL 6: trainer repointed client_id at a victim';
+  end if;
+
+  -- Client B repoints trainer_id at victim C -> rejected.
+  perform pg_temp.login(b);
+  failed := false;
+  begin
+    update public.trainer_clients
+      set trainer_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
+    where id = link_id;
+  exception when others then
+    failed := true;
+  end;
+  if not failed then
+    raise exception 'FAIL 6: client repointed trainer_id at a victim';
+  end if;
+
+  -- The repoint attacker still cannot read victim C.
+  perform pg_temp.login(a);
+  if public.are_connected(a, 'cccccccc-cccc-cccc-cccc-cccccccccccc') then
+    raise exception 'FAIL 6: repoint granted a connection to the victim';
+  end if;
+  select count(*) into leaked
+    from public.personal_bests
+   where user_id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+  if leaked <> 0 then
+    raise exception 'FAIL 6: attacker read % victim rows after repoint attempt', leaked;
+  end if;
+  raise notice 'PASS 6: link parties are immutable; repoint rejected, no leak';
+
   reset role;
   raise notice 'BUG-019 PROOF PASSED';
 end;

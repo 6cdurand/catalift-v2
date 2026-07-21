@@ -2,12 +2,13 @@
  * connection-authz.test.ts — BUG-019 regression guard.
  *
  * The full behavioral proof (attacker blocked / pending leaks nothing /
- * client-accept / trainer-cannot-self-activate / trainer-offset-edit) runs at
- * the DB level in `supabase/tests/00012_harden_trainer_client_authz.proof.sql`
+ * client-accept / trainer-cannot-self-activate / trainer-offset-edit /
+ * link-identity-immutable) runs at the DB level in
+ * `supabase/tests/00012_harden_trainer_client_authz.proof.sql`
  * (needs a live Postgres, so it is not part of the JS suite).
  *
  * This test statically enforces that migration 00012 keeps the authorization
- * hole closed — if a future edit reverts any of the four invariants, CI fails.
+ * hole closed — if a future edit reverts any invariant, CI fails.
  */
 
 import { describe, it, expect } from "vitest";
@@ -15,7 +16,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const migration = readFileSync(
-  join(process.cwd(), "supabase/migrations/00012_harden_trainer_client_authz.sql"),
+  join(
+    process.cwd(),
+    "supabase/migrations/20260721000000_00012_harden_trainer_client_authz.sql",
+  ),
   "utf8",
 );
 
@@ -49,6 +53,13 @@ describe("BUG-019 — trainer_clients authz hardening (migration 00012)", () => 
     expect(sql).toMatch(
       /create trigger trainer_clients_guard_activate before insert or update on public\.trainer_clients/,
     );
+  });
+
+  it("locks link identity — trainer_id/client_id are immutable on UPDATE", () => {
+    expect(sql).toMatch(
+      /if tg_op = 'update'\s+and \(new\.trainer_id <> old\.trainer_id or new\.client_id <> old\.client_id\)/,
+    );
+    expect(sql).toContain("link parties are immutable");
   });
 
   it("ships a rollback plan", () => {

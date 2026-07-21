@@ -95,6 +95,17 @@ security definer
 set search_path = public
 as $$
 begin
+  -- Link parties are immutable. Neither policy's WITH CHECK can compare OLD
+  -- vs NEW, so a party could otherwise repoint an existing link at a victim
+  -- (client sets trainer_id = victim then self-activates; or trainer sets
+  -- client_id = victim on an already-active link, which the activate check
+  -- below misses because status stays 'active') and gain a read connection.
+  if tg_op = 'UPDATE'
+     and (new.trainer_id <> old.trainer_id or new.client_id <> old.client_id) then
+    raise exception 'trainer_clients link parties are immutable; delete and re-invite instead'
+      using errcode = 'check_violation';
+  end if;
+
   if new.status = 'active'
      and old.status is distinct from 'active'
      and auth.uid() <> new.client_id then
