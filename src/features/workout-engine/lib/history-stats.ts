@@ -10,6 +10,7 @@
 import type { WorkoutBlock, ExerciseEntry } from '../types';
 import type { Workout, WorkoutExercise } from '@/types';
 import { recalculateAllPBs, normalizeExerciseId } from '@/lib/exerciseStats';
+import { calculate1RM } from '@/lib/exercises';
 
 export interface HistoryWorkout {
   id: string;
@@ -20,6 +21,10 @@ export interface HistoryWorkout {
 export interface PreviousBest {
   weight: number | null;
   reps: number | null;
+  /** performedAt (ISO) of the session this previous-best came from (Target: PB badges). */
+  date?: string;
+  /** All completed weight×reps sets from that most-recent session (for the 🕐 previous badge). */
+  lastSets?: { weight: number | null; reps: number | null }[];
 }
 
 function entriesOf(block: WorkoutBlock): ExerciseEntry[] {
@@ -102,8 +107,26 @@ export function detectNewPRs(
 }
 
 /**
- * Map of exerciseId → last logged weight×reps from workout `history`.
- * Drives the "Previous" column + tap-to-fill in set rows (Target 4).
+ * PB predicate for the active-screen toast (v1 fidelity). Returns the set's e1RM when
+ * it STRICTLY beats the prior all-time best for the exercise (`priorBestOneRm`, 0 if
+ * none), else null. Uses the canonical calculate1RM (Brzycki/Epley, >20 reps → null).
+ * Drops never reach here — only a parent working set can set a PB (types.ts).
+ * Pure — the "once per exercise" de-dupe is the caller's responsibility.
+ */
+export function newPersonalBestOneRm(
+  weight: number | null,
+  reps: number | null,
+  priorBestOneRm: number,
+): number | null {
+  if (weight == null || reps == null) return null;
+  const e1rm = calculate1RM(weight, reps);
+  if (e1rm == null) return null;
+  return e1rm > priorBestOneRm ? e1rm : null;
+}
+
+/**
+ * Map of exerciseId → last logged weight×reps (+ date + last sets) from workout `history`.
+ * Drives the "Previous" column + tap-to-fill in set rows and the 🕐 previous badge.
  * `history` MUST be ordered newest-first (as fetch-history returns it); the
  * first completed set found per exercise wins.
  */
@@ -113,12 +136,18 @@ export function buildPreviousBests(history: HistoryWorkout[]): Record<string, Pr
     for (const b of w.blocks) {
       for (const entry of entriesOf(b)) {
         if (entry.exerciseId in map) continue; // newest already recorded
-        const lastCompleted = [...entry.sets]
-          .reverse()
-          .find((s) => s.completed && s.weight != null && s.reps != null);
-        if (lastCompleted) {
-          map[entry.exerciseId] = { weight: lastCompleted.weight, reps: lastCompleted.reps };
-        }
+        const completed = entry.sets.filter(
+          (s) => s.completed && s.weight != null && s.reps != null,
+        );
+        if (completed.length === 0) continue;
+        const lastCompleted = completed[completed.length - 1];
+        map[entry.exerciseId] = {
+          weight: lastCompleted.weight,
+          reps: lastCompleted.reps,
+          // Extra context for the PB / previous badges (additive; tap-to-fill only reads weight/reps).
+          date: w.performedAt,
+          lastSets: completed.map((s) => ({ weight: s.weight, reps: s.reps })),
+        };
       }
     }
   }

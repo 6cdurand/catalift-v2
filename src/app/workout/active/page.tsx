@@ -47,10 +47,32 @@ import {
   type WorkoutHistoryBlocks,
 } from '@/features/workout-engine/api/fetch-history';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
-import { detectNewPRs, buildPreviousBests } from '@/features/workout-engine/lib/history-stats';
+import {
+  detectNewPRs,
+  buildPreviousBests,
+  newPersonalBestOneRm,
+  type PreviousBest,
+} from '@/features/workout-engine/lib/history-stats';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
 import { upsertPersonalBests } from '@/features/workout-engine/api/upsert-personal-bests';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import {
+  fetchPersonalBests,
+  type PersonalBestItem,
+} from '@/features/workout-engine/api/fetch-personal-bests';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import { computeSetVolume } from '@/features/workout-engine/lib/volume';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import type { ExercisePBBadges } from '@/features/workout-engine/components/ExerciseCard';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import type { ExerciseEntry } from '@/features/workout-engine/types';
 import { getExerciseAnimationUrl } from '@/lib/exerciseAnimations';
+import { getExerciseById, getMuscleDisplayName } from '@/lib/exercises';
+import { normalizeExerciseId } from '@/lib/exerciseStats';
+import type { MuscleGroup } from '@/types';
+import { toast } from 'sonner';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import shared UI
+import { Toaster } from '@/components/ui/sonner';
 
 // Small exercise-picker thumbnail (v1 fidelity). Fallback = no image box, just the
 // name (v1 active/page.tsx:4941). Render wire-up only.
@@ -704,6 +726,13 @@ export default function ActiveWorkoutPage() {
   const historyRef = useRef<WorkoutHistoryBlocks[]>([]);
   // B1: Per-set rest timers (ported from v1 active/page.tsx:408)
   const [setRestTimers, setSetRestTimers] = useState<Record<string, { remaining: number; total: number }>>({});
+  // All-time PBs keyed by normalized exerciseId (from personal_bests) — feeds the 🏆 PB
+  // badge + volume bar + the once-per-exercise PB toast. Read-only, RLS-scoped, best-effort.
+  const [personalBests, setPersonalBests] = useState<Record<string, PersonalBestItem>>({});
+  // Previous-session context (date + last sets) keyed by exerciseId — feeds the 🕐 badge.
+  const [previousBests, setPreviousBestsState] = useState<Record<string, PreviousBest>>({});
+  // PB toast de-dupe: exerciseIds already celebrated this session (fire once per exercise).
+  const toastedPbRef = useRef<Set<string>>(new Set());
 
   // Real session (BUG-014 fix)
   const { user, loading } = useSession();
@@ -787,7 +816,9 @@ export default function ActiveWorkoutPage() {
       .then((hist) => {
         if (cancelled) return;
         historyRef.current = hist;
-        setPreviousBests(buildPreviousBests(hist));
+        const prev = buildPreviousBests(hist);
+        setPreviousBests(prev); // store: tap-to-fill (weight/reps)
+        setPreviousBestsState(prev); // local: 🕐 badge (date + last sets)
       })
       .catch(() => {
         /* history is best-effort; the Previous column just stays blank */
@@ -796,6 +827,26 @@ export default function ActiveWorkoutPage() {
       cancelled = true;
     };
   }, [user, setPreviousBests]);
+
+  // Load all-time PBs (personal_bests) for the 🏆 badge + volume bar + PB toast.
+  // Read-only, RLS-scoped, best-effort — badges simply stay hidden on failure.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    fetchPersonalBests(user.id)
+      .then((pbs) => {
+        if (cancelled) return;
+        const map: Record<string, PersonalBestItem> = {};
+        for (const pb of pbs) map[normalizeExerciseId(pb.exerciseId)] = pb;
+        setPersonalBests(map);
+      })
+      .catch(() => {
+        /* PBs are best-effort; badges just stay hidden */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   if (loading || redirect !== null) return null;
 
@@ -813,6 +864,38 @@ export default function ActiveWorkoutPage() {
     );
   }
 
+  // PB toast (v1 fidelity): when the just-completed set's e1RM beats the prior all-time
+  // best for that exercise, celebrate ONCE per exercise per session (toastedPbRef guard).
+  // Drops never feed e1RM (types.ts) — only the parent working set can set a PB.
+  const maybeCelebratePb = (entryId: string, setId: string) => {
+    const blocks = activeWorkout?.blocks ?? [];
+    for (const b of blocks) {
+      const entries =
+        b.kind === 'straight'
+          ? [b.exercise]
+          : b.kind === 'superset'
+            ? b.exercises
+            : b.kind === 'circuit'
+              ? b.stations
+              : [];
+      const entry = entries.find((e) => e.id === entryId);
+      if (!entry) continue;
+      const set = entry.sets.find((s) => s.id === setId);
+      if (!set) return;
+      const normId = normalizeExerciseId(entry.exerciseId);
+      if (toastedPbRef.current.has(normId)) return;
+      const priorBest = personalBests[normId]?.oneRepMax ?? 0;
+      const e1rm = newPersonalBestOneRm(set.weight, set.reps, priorBest);
+      if (e1rm != null) {
+        toastedPbRef.current.add(normId);
+        toast.success(
+          `New Personal Best! 🏆 ${entry.exerciseName} · ${set.weight}kg × ${set.reps} (${Math.round(e1rm)}kg e1RM)`,
+        );
+      }
+      return;
+    }
+  };
+
   // B1: Wrap completeSet to start per-set rest timer (ported from v1)
   const handleCompleteSet = (entryId: string, setId: string) => {
     completeSet(entryId, setId);
@@ -821,6 +904,8 @@ export default function ActiveWorkoutPage() {
       ...prev,
       [setId]: { remaining: 90, total: 90 },
     }));
+    // PB celebration (once per exercise) — compare against the prior all-time best.
+    maybeCelebratePb(entryId, setId);
   };
 
   // Superset creation (v1 :1336): open the picker seeded with the source straight exercise.
@@ -841,6 +926,51 @@ export default function ActiveWorkoutPage() {
         : null,
     )
     .filter((c): c is { entryId: string; name: string; setCount: number } => c !== null);
+
+  // Assemble the optional PB/previous/volume badge props for one exercise entry
+  // (v1 ~3900-3960). PB from personal_bests (normalized id), muscle from the library,
+  // previous session from buildPreviousBests, today's volume computed live (G-13).
+  const buildEntryBadges = (entry: ExerciseEntry): ExercisePBBadges => {
+    const normId = normalizeExerciseId(entry.exerciseId);
+    const pbItem = personalBests[normId];
+    const primary = getExerciseById(entry.exerciseId)?.primaryMuscles?.[0];
+    const prev = previousBests[entry.exerciseId];
+    const prevLast = prev?.lastSets?.[prev.lastSets.length - 1];
+    const prevWeight = prevLast?.weight ?? prev?.weight ?? null;
+    const prevReps = prevLast?.reps ?? prev?.reps ?? null;
+    return {
+      pb: pbItem
+        ? {
+            bestWeight: pbItem.bestWeight,
+            bestReps: pbItem.bestReps,
+            oneRepMax: pbItem.oneRepMax,
+            bestVolume: pbItem.bestVolume,
+          }
+        : undefined,
+      todayVolume: entry.sets.reduce((a, s) => a + computeSetVolume(s), 0),
+      muscleLabel: primary ? getMuscleDisplayName(primary as MuscleGroup) : undefined,
+      previousDate: prev?.date ?? null,
+      previousSummary:
+        prevWeight != null && prevReps != null
+          ? `${Math.abs(prevWeight)}×${prevReps}`
+          : null,
+    };
+  };
+
+  // Badge props keyed by entry.id — forwarded to straight ExerciseCards directly and
+  // through SupersetCard/CircuitCard (badgesByEntryId) to their grouped ExerciseCards.
+  const badgesByEntryId: Record<string, ExercisePBBadges> = {};
+  for (const block of activeWorkout?.blocks ?? []) {
+    const entries =
+      block.kind === 'straight'
+        ? [block.exercise]
+        : block.kind === 'superset'
+          ? block.exercises
+          : block.kind === 'circuit'
+            ? block.stations
+            : [];
+    for (const e of entries) badgesByEntryId[e.id] = buildEntryBadges(e);
+  }
 
   const handleFinish = async () => {
     if (isFinishing) return;
@@ -922,6 +1052,7 @@ export default function ActiveWorkoutPage() {
                 onUpdateDrop={updateDrop}
                 onRemoveDrop={removeDrop}
                 restTimers={setRestTimers}
+                {...(badgesByEntryId[block.exercise.id] ?? {})}
               />
             );
           }
@@ -951,6 +1082,7 @@ export default function ActiveWorkoutPage() {
                 onUpdateDrop={updateDrop}
                 onRemoveDrop={removeDrop}
                 restTimers={setRestTimers}
+                badgesByEntryId={badgesByEntryId}
               />
             );
           }
@@ -968,6 +1100,7 @@ export default function ActiveWorkoutPage() {
                 onRemoveBlock={removeBlock}
                 onAddRound={addRound}
                 restTimers={setRestTimers}
+                badgesByEntryId={badgesByEntryId}
               />
             );
           }
@@ -1053,6 +1186,10 @@ export default function ActiveWorkoutPage() {
           userId={user?.id}
         />
       )}
+
+      {/* Toast host — /workout/active is outside the (app) group, so it has no Toaster.
+          Mount one here for the PB celebration (sonner). */}
+      <Toaster />
     </div>
   );
 }

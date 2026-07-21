@@ -3,7 +3,7 @@
 // Reuses ExerciseCard/SetRow unchanged; passes store callbacks straight through.
 
 import { cn } from '@/lib/utils';
-import { ExerciseCard } from './ExerciseCard';
+import { ExerciseCard, type ExercisePBBadges } from './ExerciseCard';
 import { BlockMenu } from './BlockMenu';
 import { getBlockStylesFromKind } from './block-types';
 import type { WorkoutBlock, ExerciseEntry, LoggedSet, DropSet } from '../types';
@@ -22,6 +22,8 @@ interface SupersetCardProps {
   onUpdateDrop?: (entryId: string, setId: string, dropId: string, updates: Partial<DropSet>) => void;
   onRemoveDrop?: (entryId: string, setId: string, dropId: string) => void;
   restTimers?: Record<string, { remaining: number; total: number }>;
+  /** Optional PB/previous/volume badges per grouped entry (keyed by entry.id). Forwarded to each ExerciseCard. */
+  badgesByEntryId?: Record<string, ExercisePBBadges>;
 }
 
 export function SupersetCard({
@@ -37,6 +39,7 @@ export function SupersetCard({
   onUpdateDrop,
   onRemoveDrop,
   restTimers,
+  badgesByEntryId,
 }: SupersetCardProps) {
   const styles = getBlockStylesFromKind(block.kind);
   const exerciseCount = block.exercises.length;
@@ -86,6 +89,7 @@ export function SupersetCard({
             onUpdateDrop={onUpdateDrop}
             onRemoveDrop={onRemoveDrop}
             restTimers={restTimers}
+            {...(badgesByEntryId?.[entry.id] ?? {})}
           />
         ))}
       </div>
