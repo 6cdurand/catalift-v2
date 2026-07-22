@@ -33,7 +33,7 @@ import {
   Plus,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useSession, useUserRole } from "@/features/auth";
+import { useSession, useUserRole, createInvitation } from "@/features/auth";
 import { fetchClients } from "@/lib/roster";
 import type { RosterClientDetail, RosterStats } from "@/types/roster";
 
@@ -73,6 +73,7 @@ export default function ClientsPage() {
   const [newClientName, setNewClientName] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
   const [linkSearchQuery, setLinkSearchQuery] = useState("");
+  const [isCreatingClient, setIsCreatingClient] = useState(false);
 
   const isTrainer = role === "trainer";
 
@@ -115,6 +116,28 @@ export default function ClientsPage() {
       toast.error("Sync failed");
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const handleCreateClient = async () => {
+    const email = newClientEmail.trim();
+    if (!email) {
+      toast.error("Please enter an email address");
+      return;
+    }
+    setIsCreatingClient(true);
+    try {
+      const inviteLink = await createInvitation(email);
+      await navigator.clipboard.writeText(inviteLink);
+      toast.success("Invite link copied — send it to your client");
+      setShowAddClient(false);
+      setClientMode(null);
+      setNewClientName("");
+      setNewClientEmail("");
+    } catch {
+      toast.error("Failed to create invite. Please try again.");
+    } finally {
+      setIsCreatingClient(false);
     }
   };
 
@@ -172,16 +195,10 @@ export default function ClientsPage() {
                     {clientMode === null
                       ? "Does this client already have an account?"
                       : clientMode === "create"
-                        ? "Create a new account for your client"
+                        ? "Send an invite link to your client's email"
                         : "Link an existing Catalift account"}
                   </DialogDescription>
                 </DialogHeader>
-
-                {/* Deferred: Add Client lands with the trainer-invite migration. */}
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                  Adding clients is coming soon — it ships with the trainer-invite
-                  update.
-                </div>
 
                 {/* Step 1: Choose Create or Link */}
                 {clientMode === null && (
@@ -237,7 +254,7 @@ export default function ClientsPage() {
                     </div>
                     <div className="space-y-2">
                       <Label className="text-gray-700">
-                        Email <span className="text-gray-400">(optional)</span>
+                        Email <span className="text-rose-500">*</span>
                       </Label>
                       <Input
                         type="email"
@@ -248,10 +265,18 @@ export default function ClientsPage() {
                       />
                     </div>
                     <Button
-                      onClick={() => comingSoon("Create client")}
+                      onClick={handleCreateClient}
+                      disabled={isCreatingClient || !newClientEmail.trim()}
                       className="w-full bg-rose-500 hover:bg-rose-600"
                     >
-                      Add Client
+                      {isCreatingClient ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        "Send Invite"
+                      )}
                     </Button>
                   </div>
                 )}
