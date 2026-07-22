@@ -26,18 +26,21 @@ function makeStraightBlock(completedSets: number): WorkoutBlock {
   return {
     id: newId(),
     kind: "straight",
-    exercise: {
-      id: newId(),
-      exerciseId: newId(),
-      exerciseName: "Bench Press",
-      sets: Array.from({ length: completedSets }, (_, i) => ({
+    blockType: "strength",
+    exercises: [
+      {
         id: newId(),
-        weight: 100,
-        reps: 5,
-        completed: true,
-        setNumber: i + 1,
-      })),
-    },
+        exerciseId: newId(),
+        exerciseName: "Bench Press",
+        sets: Array.from({ length: completedSets }, (_, i) => ({
+          id: newId(),
+          weight: 100,
+          reps: 5,
+          completed: true,
+          setNumber: i + 1,
+        })),
+      },
+    ],
   };
 }
 

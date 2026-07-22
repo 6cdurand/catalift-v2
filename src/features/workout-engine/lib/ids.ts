@@ -28,7 +28,7 @@ function assertBlock(block: WorkoutBlock): void {
   assertId(block.id, "block");
   switch (block.kind) {
     case "straight":
-      assertEntry(block.exercise, "exercise");
+      for (const e of block.exercises) assertEntry(e, "exercise");
       break;
     case "superset":
       for (const e of block.exercises) assertEntry(e, "exercise");

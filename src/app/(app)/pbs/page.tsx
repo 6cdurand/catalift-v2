@@ -116,8 +116,10 @@ export default function PBsPage() {
     for (const w of workoutHistory) {
       for (const block of w.blocks) {
         if (block.kind === 'straight') {
-          if (!m[block.exercise.exerciseId] && block.exercise.exerciseName) {
-            m[block.exercise.exerciseId] = block.exercise.exerciseName;
+          for (const ex of block.exercises) {
+            if (!m[ex.exerciseId] && ex.exerciseName) {
+              m[ex.exerciseId] = ex.exerciseName;
+            }
           }
         } else if (block.kind === 'superset') {
           for (const ex of block.exercises) {
@@ -200,7 +202,7 @@ export default function PBsPage() {
         let exercisesToCheck: Array<{ exerciseId: string; sets: Array<{ weight: number | null; reps: number | null; completed: boolean }> }> = [];
 
         if (block.kind === 'straight') {
-          exercisesToCheck = [block.exercise];
+          exercisesToCheck = block.exercises;
         } else if (block.kind === 'superset') {
           exercisesToCheck = block.exercises;
         } else if (block.kind === 'circuit') {

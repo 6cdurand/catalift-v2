@@ -175,14 +175,14 @@ describe('active-workout-store w2b — superset + circuit', () => {
 
     const block = getBlocks()[0];
     if (block?.kind !== 'straight') return;
-    const entryId = block.exercise.id;
+    const entryId = block.exercises[0].id;
 
     useActiveWorkoutStore.getState().addSet(entryId);
     const block2 = getBlocks()[0];
     if (block2?.kind !== 'straight') return;
-    expect(block2.exercise.sets).toHaveLength(1);
-    expect(block2.exercise.sets[0].setNumber).toBe(1);
-    expect(block2.exercise.sets[0].completed).toBe(false);
+    expect(block2.exercises[0].sets).toHaveLength(1);
+    expect(block2.exercises[0].sets[0].setNumber).toBe(1);
+    expect(block2.exercises[0].sets[0].completed).toBe(false);
   });
 
   // ── addRound ──
@@ -321,11 +321,11 @@ describe('active-workout-store w2b — superset + circuit', () => {
     useActiveWorkoutStore.getState().addExercise({ exerciseId: 'ex-1', exerciseName: 'Squat' });
     const sBlock = getBlocks()[0];
     if (sBlock?.kind !== 'straight') return;
-    const sId = sBlock.exercise.id;
+    const sId = sBlock.exercises[0].id;
     useActiveWorkoutStore.getState().addSet(sId);
     const sBlock2 = getBlocks()[0];
     if (sBlock2?.kind !== 'straight') return;
-    const sSetId = sBlock2.exercise.sets[0].id;
+    const sSetId = sBlock2.exercises[0].sets[0].id;
     useActiveWorkoutStore.getState().updateSet(sId, sSetId, { weight: 100, reps: 10 });
     useActiveWorkoutStore.getState().completeSet(sId, sSetId);
 
@@ -434,7 +434,8 @@ describe('active-workout-store w2b — superset + circuit', () => {
     const straight: WorkoutBlock = {
       id: 'b1',
       kind: 'straight',
-      exercise: { id: 'e1', exerciseId: 'ex-1', exerciseName: 'Squat', sets: [] },
+      blockType: 'strength',
+      exercises: [{ id: 'e1', exerciseId: 'ex-1', exerciseName: 'Squat', sets: [] }],
     };
     expect(entriesOfBlock(straight)).toHaveLength(1);
 

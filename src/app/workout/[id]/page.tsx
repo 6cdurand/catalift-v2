@@ -141,46 +141,50 @@ export default function WorkoutDetailPage({ params }: PageProps) {
             <Card key={blockIndex} className="bg-white border-gray-200">
               <CardContent className="p-4">
                 {block.kind === "straight" && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-semibold text-gray-900">
-                        {block.exercise.exerciseName}
-                      </h4>
-                      <Badge variant="outline" className="text-xs">
-                        {block.exercise.sets.filter((s) => s.completed).length} sets
-                      </Badge>
-                    </div>
-                    <div className="space-y-2">
-                      {block.exercise.sets
-                        .filter((s) => s.completed)
-                        .map((set, setIndex) => (
-                          <div
-                            key={setIndex}
-                            className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
-                          >
-                            <span className="text-sm text-gray-600">
-                              Set {setIndex + 1}
-                            </span>
-                            <div className="flex items-center gap-4">
-                              {set.weight !== null && (
-                                <span className="text-sm font-medium text-gray-900">
-                                  {set.weight}kg
-                                </span>
-                              )}
-                              {set.reps !== null && (
+                  <div className="space-y-4">
+                    {block.exercises.map((ex, exIndex) => (
+                      <div key={ex.id ?? exIndex} className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold text-gray-900">
+                            {ex.exerciseName}
+                          </h4>
+                          <Badge variant="outline" className="text-xs">
+                            {ex.sets.filter((s) => s.completed).length} sets
+                          </Badge>
+                        </div>
+                        <div className="space-y-2">
+                          {ex.sets
+                            .filter((s) => s.completed)
+                            .map((set, setIndex) => (
+                              <div
+                                key={setIndex}
+                                className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                              >
                                 <span className="text-sm text-gray-600">
-                                  {set.reps} reps
+                                  Set {setIndex + 1}
                                 </span>
-                              )}
-                              {set.durationSeconds !== null && set.durationSeconds !== undefined && (
-                                <span className="text-sm text-gray-600">
-                                  {set.durationSeconds}s
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                    </div>
+                                <div className="flex items-center gap-4">
+                                  {set.weight !== null && (
+                                    <span className="text-sm font-medium text-gray-900">
+                                      {set.weight}kg
+                                    </span>
+                                  )}
+                                  {set.reps !== null && (
+                                    <span className="text-sm text-gray-600">
+                                      {set.reps} reps
+                                    </span>
+                                  )}
+                                  {set.durationSeconds !== null && set.durationSeconds !== undefined && (
+                                    <span className="text-sm text-gray-600">
+                                      {set.durationSeconds}s
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
 

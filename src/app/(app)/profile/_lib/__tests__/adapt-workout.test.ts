@@ -27,15 +27,18 @@ function item(over: Partial<WorkoutHistoryItem> = {}): WorkoutHistoryItem {
 const straightBlock: WorkoutBlock = {
   id: "b1",
   kind: "straight",
-  exercise: {
-    id: "e1",
-    exerciseId: "bench-press",
-    exerciseName: "Bench Press",
-    sets: [
-      { id: "s1", setNumber: 1, weight: 100, reps: 5, completed: true },
-      { id: "s2", setNumber: 2, weight: 100, reps: 5, completed: false },
-    ],
-  },
+  blockType: "strength",
+  exercises: [
+    {
+      id: "e1",
+      exerciseId: "bench-press",
+      exerciseName: "Bench Press",
+      sets: [
+        { id: "s1", setNumber: 1, weight: 100, reps: 5, completed: true },
+        { id: "s2", setNumber: 2, weight: 100, reps: 5, completed: false },
+      ],
+    },
+  ],
 };
 
 const supersetBlock: WorkoutBlock = {

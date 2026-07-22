@@ -29,12 +29,15 @@ function makeStraightBlock(
   return {
     id: `block-${exerciseId}-${Math.random()}`,
     kind: "straight",
-    exercise: {
-      id: `ex-${exerciseId}-${Math.random()}`,
-      exerciseId,
-      exerciseName,
-      sets,
-    },
+    blockType: "strength",
+    exercises: [
+      {
+        id: `ex-${exerciseId}-${Math.random()}`,
+        exerciseId,
+        exerciseName,
+        sets,
+      },
+    ],
   };
 }
 

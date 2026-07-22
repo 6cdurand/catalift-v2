@@ -14,7 +14,25 @@ import { SetRow } from './SetRow';
 import { getExerciseAnimationUrl } from '@/lib/exerciseAnimations';
 import type { DropSet, ExerciseEntry, LoggedSet } from '../types';
 
-interface ExerciseCardProps {
+/**
+ * Optional per-exercise PB / previous / volume context (v1 active/page.tsx ~3900-3960).
+ * ALL fields optional — badges render ONLY when the caller supplies data, so the block
+ * model keeps working unchanged when they are omitted (e.g. in tests / trainer review).
+ */
+export interface ExercisePBBadges {
+  /** All-time PB from personal_bests (via api/fetch-personal-bests). */
+  pb?: { bestWeight: number; bestReps: number; oneRepMax: number; bestVolume: number };
+  /** This session's volume for the exercise (SUM weight×reps incl. drops, G-13). */
+  todayVolume?: number;
+  /** Primary-muscle display label (getMuscleDisplayName(primaryMuscles[0])). */
+  muscleLabel?: string;
+  /** performedAt (ISO) of the previous session for the 🕐 badge. */
+  previousDate?: string | null;
+  /** Short "w×r" summary of the previous session's last set. */
+  previousSummary?: string | null;
+}
+
+interface ExerciseCardProps extends ExercisePBBadges {
   entry: ExerciseEntry;
   onAddSet: (entryId: string) => void;
   onUpdateSet: (entryId: string, setId: string, updates: Partial<LoggedSet>) => void;
@@ -33,6 +51,13 @@ interface ExerciseCardProps {
   restTimers?: Record<string, { remaining: number; total: number }>;
 }
 
+/** "MMM d" (e.g. "Jul 5") for the previous-session badge. Tolerant of bad input. */
+function formatBadgeDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 export function ExerciseCard({
   entry,
   onAddSet,
@@ -47,10 +72,26 @@ export function ExerciseCard({
   onCreateSuperset,
   hideAddSet = false,
   restTimers,
+  pb,
+  todayVolume,
+  muscleLabel,
+  previousDate,
+  previousSummary,
 }: ExerciseCardProps) {
   const showActionsMenu = Boolean(onCreateSuperset || onAddDropSet);
   const completedCount = entry.sets.filter((s) => s.completed).length;
   const totalCount = entry.sets.length;
+
+  // v1 PB / previous / volume badges (~3900-3960). Render ONLY when the caller
+  // supplies the data (optional props) — omitting them keeps the block model intact.
+  const hasPb = Boolean(pb);
+  const hasPrev = Boolean(previousDate && previousSummary);
+  const showVolumeBar = Boolean(pb && pb.bestVolume > 0 && todayVolume != null);
+  const showBadges = hasPb || hasPrev || showVolumeBar;
+  const volumePct =
+    pb && pb.bestVolume > 0 && todayVolume != null
+      ? Math.min(100, Math.round((todayVolume / pb.bestVolume) * 100))
+      : 0;
 
   return (
     <div className="bg-white border-b border-gray-100">
@@ -76,6 +117,9 @@ export function ExerciseCard({
               <div className="flex items-center gap-1.5">
                 <p className="font-medium text-gray-900 truncate">{entry.exerciseName}</p>
               </div>
+              {muscleLabel && (
+                <p className="text-xs text-gray-400 truncate">{muscleLabel}</p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -139,6 +183,40 @@ export function ExerciseCard({
             )}
           </div>
         </div>
+
+        {/* PB / previous / volume badges (v1 active/page.tsx ~3900-3960).
+            Rendered only when the caller supplies the optional data. */}
+        {showBadges && (
+          <div className="mt-1.5 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {hasPb && pb && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                  🏆 PB {pb.bestWeight}×{pb.bestReps}
+                  {pb.oneRepMax ? ` · ${Math.round(pb.oneRepMax)}kg e1RM` : ''}
+                </span>
+              )}
+              {hasPrev && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
+                  🕐 {formatBadgeDate(previousDate as string)} · {previousSummary}
+                </span>
+              )}
+            </div>
+            {showVolumeBar && pb && (
+              <div>
+                <div className="flex items-center justify-between text-[10px] text-gray-500">
+                  <span>Today {Math.round(todayVolume as number)}kg</span>
+                  <span>Best {Math.round(pb.bestVolume)}kg</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                  <div
+                    className="h-full rounded-full bg-sky-500 transition-all"
+                    style={{ width: `${volumePct}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Sets header */}

@@ -20,7 +20,7 @@ import type { PersonalBestItem } from "@/features/workout-engine/api/fetch-perso
 
 /** Flatten a v2 block into the resistance entries it contains (cardio has none). */
 function entriesOfBlock(block: WorkoutBlock): ExerciseEntry[] {
-  if (block.kind === "straight") return [block.exercise];
+  if (block.kind === "straight") return block.exercises;
   if (block.kind === "superset") return block.exercises;
   if (block.kind === "circuit") return block.stations;
   return [];

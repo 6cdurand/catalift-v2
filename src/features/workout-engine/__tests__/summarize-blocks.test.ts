@@ -6,16 +6,19 @@ function makeStraightBlock(): WorkoutBlock {
   return {
     id: 'b1',
     kind: 'straight',
-    exercise: {
-      id: 'e1',
-      exerciseId: 'bench-press',
-      exerciseName: 'Bench Press',
-      sets: [
-        { id: 's1', setNumber: 1, weight: 80, reps: 10, completed: true },
-        { id: 's2', setNumber: 2, weight: 85, reps: 8, completed: true },
-        { id: 's3', setNumber: 3, weight: 90, reps: 5, completed: false },
-      ],
-    },
+    blockType: 'strength',
+    exercises: [
+      {
+        id: 'e1',
+        exerciseId: 'bench-press',
+        exerciseName: 'Bench Press',
+        sets: [
+          { id: 's1', setNumber: 1, weight: 80, reps: 10, completed: true },
+          { id: 's2', setNumber: 2, weight: 85, reps: 8, completed: true },
+          { id: 's3', setNumber: 3, weight: 90, reps: 5, completed: false },
+        ],
+      },
+    ],
   };
 }
 

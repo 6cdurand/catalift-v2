@@ -45,10 +45,10 @@ describe('active-workout-store', () => {
     expect(block?.kind).toBe('straight');
     if (block?.kind === 'straight') {
       expect(block.id).toMatch(/^[0-9a-f-]{36}$/);
-      expect(block.exercise.id).toMatch(/^[0-9a-f-]{36}$/);
-      expect(block.exercise.exerciseId).toBe('ex-1');
-      expect(block.exercise.exerciseName).toBe('Bench Press');
-      expect(block.exercise.sets).toEqual([]);
+      expect(block.exercises[0].id).toMatch(/^[0-9a-f-]{36}$/);
+      expect(block.exercises[0].exerciseId).toBe('ex-1');
+      expect(block.exercises[0].exerciseName).toBe('Bench Press');
+      expect(block.exercises[0].sets).toEqual([]);
     }
   });
 
@@ -60,14 +60,14 @@ describe('active-workout-store', () => {
     const state1 = useActiveWorkoutStore.getState();
     const block1 = state1.activeWorkout?.blocks[0];
     if (block1?.kind === 'straight') {
-      const entryId = block1.exercise.id;
+      const entryId = block1.exercises[0].id;
       addSet(entryId);
 
       const state2 = useActiveWorkoutStore.getState();
       const block2 = state2.activeWorkout?.blocks[0];
       if (block2?.kind === 'straight') {
-        expect(block2.exercise.sets.length).toBe(1);
-        const set = block2.exercise.sets[0];
+        expect(block2.exercises[0].sets.length).toBe(1);
+        const set = block2.exercises[0].sets[0];
         expect(set.id).toMatch(/^[0-9a-f-]{36}$/);
         expect(set.setNumber).toBe(1);
         expect(set.completed).toBe(false);
@@ -85,12 +85,12 @@ describe('active-workout-store', () => {
     const state1 = useActiveWorkoutStore.getState();
     const block1 = state1.activeWorkout?.blocks[0];
     if (block1?.kind === 'straight') {
-      addSet(block1.exercise.id);
+      addSet(block1.exercises[0].id);
 
       const state2 = useActiveWorkoutStore.getState();
       const block2 = state2.activeWorkout?.blocks[0];
       if (block2?.kind === 'straight') {
-        const set = block2.exercise.sets[0];
+        const set = block2.exercises[0].sets[0];
         expect(set.previousWeight).toBeNull();
         expect(set.previousReps).toBeNull();
       }
@@ -106,19 +106,19 @@ describe('active-workout-store', () => {
     const state1 = useActiveWorkoutStore.getState();
     const block1 = state1.activeWorkout?.blocks[0];
     if (block1?.kind === 'straight') {
-      const entryId = block1.exercise.id;
+      const entryId = block1.exercises[0].id;
       addSet(entryId);
 
       const state2 = useActiveWorkoutStore.getState();
       const block2 = state2.activeWorkout?.blocks[0];
       if (block2?.kind === 'straight') {
-        const setId = block2.exercise.sets[0].id;
+        const setId = block2.exercises[0].sets[0].id;
         updateSet(entryId, setId, { weight: 100, reps: 10 });
 
         const state3 = useActiveWorkoutStore.getState();
         const block3 = state3.activeWorkout?.blocks[0];
         if (block3?.kind === 'straight') {
-          const set = block3.exercise.sets[0];
+          const set = block3.exercises[0].sets[0];
           expect(set.weight).toBe(100);
           expect(set.reps).toBe(10);
         }
@@ -135,20 +135,20 @@ describe('active-workout-store', () => {
     const state1 = useActiveWorkoutStore.getState();
     const block1 = state1.activeWorkout?.blocks[0];
     if (block1?.kind === 'straight') {
-      const entryId = block1.exercise.id;
+      const entryId = block1.exercises[0].id;
       addSet(entryId);
 
       const state2 = useActiveWorkoutStore.getState();
       const block2 = state2.activeWorkout?.blocks[0];
       if (block2?.kind === 'straight') {
-        const setId = block2.exercise.sets[0].id;
+        const setId = block2.exercises[0].sets[0].id;
         updateSet(entryId, setId, { weight: 80, reps: 8 });
         completeSet(entryId, setId);
 
         const state3 = useActiveWorkoutStore.getState();
         const block3 = state3.activeWorkout?.blocks[0];
         if (block3?.kind === 'straight') {
-          expect(block3.exercise.sets[0].completed).toBe(true);
+          expect(block3.exercises[0].sets[0].completed).toBe(true);
         }
       }
     }
@@ -163,13 +163,13 @@ describe('active-workout-store', () => {
     const state1 = useActiveWorkoutStore.getState();
     const block1 = state1.activeWorkout?.blocks[0];
     if (block1?.kind === 'straight') {
-      const entryId = block1.exercise.id;
+      const entryId = block1.exercises[0].id;
       addSet(entryId);
 
       const state2 = useActiveWorkoutStore.getState();
       const block2 = state2.activeWorkout?.blocks[0];
       if (block2?.kind === 'straight') {
-        const setId = block2.exercise.sets[0].id;
+        const setId = block2.exercises[0].sets[0].id;
         updateSet(entryId, setId, { weight: 20, reps: 12 });
         completeSet(entryId, setId);
         uncompleteSet(entryId, setId);
@@ -177,7 +177,7 @@ describe('active-workout-store', () => {
         const state3 = useActiveWorkoutStore.getState();
         const block3 = state3.activeWorkout?.blocks[0];
         if (block3?.kind === 'straight') {
-          expect(block3.exercise.sets[0].completed).toBe(false);
+          expect(block3.exercises[0].sets[0].completed).toBe(false);
         }
       }
     }
@@ -192,7 +192,7 @@ describe('active-workout-store', () => {
     const state1 = useActiveWorkoutStore.getState();
     const block1 = state1.activeWorkout?.blocks[0];
     if (block1?.kind === 'straight') {
-      const entryId = block1.exercise.id;
+      const entryId = block1.exercises[0].id;
       addSet(entryId);
       addSet(entryId);
       addSet(entryId);
@@ -200,16 +200,16 @@ describe('active-workout-store', () => {
       const state2 = useActiveWorkoutStore.getState();
       const block2 = state2.activeWorkout?.blocks[0];
       if (block2?.kind === 'straight') {
-        expect(block2.exercise.sets.length).toBe(3);
-        const set1Id = block2.exercise.sets[0].id;
+        expect(block2.exercises[0].sets.length).toBe(3);
+        const set1Id = block2.exercises[0].sets[0].id;
         removeSet(entryId, set1Id);
 
         const state3 = useActiveWorkoutStore.getState();
         const block3 = state3.activeWorkout?.blocks[0];
         if (block3?.kind === 'straight') {
-          expect(block3.exercise.sets.length).toBe(2);
-          expect(block3.exercise.sets[0].setNumber).toBe(1);
-          expect(block3.exercise.sets[1].setNumber).toBe(2);
+          expect(block3.exercises[0].sets.length).toBe(2);
+          expect(block3.exercises[0].sets[0].setNumber).toBe(1);
+          expect(block3.exercises[0].sets[1].setNumber).toBe(2);
         }
       }
     }
@@ -227,13 +227,13 @@ describe('active-workout-store', () => {
 
     const block1 = state1.activeWorkout?.blocks[0];
     if (block1?.kind === 'straight') {
-      removeExercise(block1.exercise.id);
+      removeExercise(block1.exercises[0].id);
 
       const state2 = useActiveWorkoutStore.getState();
       expect(state2.activeWorkout?.blocks.length).toBe(1);
       const remaining = state2.activeWorkout?.blocks[0];
       if (remaining?.kind === 'straight') {
-        expect(remaining.exercise.exerciseName).toBe('Dip');
+        expect(remaining.exercises[0].exerciseName).toBe('Dip');
       }
     }
   });
@@ -247,15 +247,15 @@ describe('active-workout-store', () => {
     const state1 = useActiveWorkoutStore.getState();
     const block1 = state1.activeWorkout?.blocks[0];
     if (block1?.kind === 'straight') {
-      const entryId = block1.exercise.id;
+      const entryId = block1.exercises[0].id;
       addSet(entryId);
       addSet(entryId);
 
       const state2 = useActiveWorkoutStore.getState();
       const block2 = state2.activeWorkout?.blocks[0];
       if (block2?.kind === 'straight') {
-        const set1Id = block2.exercise.sets[0].id;
-        const set2Id = block2.exercise.sets[1].id;
+        const set1Id = block2.exercises[0].sets[0].id;
+        const set2Id = block2.exercises[0].sets[1].id;
         updateSet(entryId, set1Id, { weight: 100, reps: 10 });
         updateSet(entryId, set2Id, { weight: 110, reps: 8 });
         completeSet(entryId, set1Id);
@@ -287,15 +287,15 @@ describe('active-workout-store', () => {
     const state1 = useActiveWorkoutStore.getState();
     const block1 = state1.activeWorkout?.blocks[0];
     if (block1?.kind === 'straight') {
-      addSet(block1.exercise.id);
+      addSet(block1.exercises[0].id);
 
       const state2 = useActiveWorkoutStore.getState();
       const workoutId = state2.activeWorkout?.id;
       const blockId = block1.id;
-      const entryId = block1.exercise.id;
+      const entryId = block1.exercises[0].id;
       const block2 = state2.activeWorkout?.blocks[0];
       if (block2?.kind === 'straight') {
-        const setId = block2.exercise.sets[0].id;
+        const setId = block2.exercises[0].sets[0].id;
 
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
         expect(workoutId).toMatch(uuidRegex);

@@ -6,11 +6,10 @@ export const FEATURE_FLAGS = {
   healthData: false,
   notifications: false,
   calendarWeekDayView: false,
-  // Trainer-invite acceptance. OFF until the `invitations` table + its RLS
-  // land in a separate Class-B migration spec. The /invite UI renders
-  // verbatim, but the verify/accept path is gated on this flag so we never
-  // fake a table or fall back to localStorage (G-02/G-03).
-  invites: false,
+  // Trainer-invite acceptance. The `invitations` table, `verify_invitation` /
+  // `accept_invitation` RPCs, and `invitations_trainer_all` RLS policy are
+  // live. The /invite UI verifies + accepts via real server-side RPCs.
+  invites: true,
 } as const;
 
 export type FeatureFlag = keyof typeof FEATURE_FLAGS;

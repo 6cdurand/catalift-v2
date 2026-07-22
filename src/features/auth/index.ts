@@ -8,6 +8,7 @@ export { upsertProfile, type ProfileUpdate } from "./api/profile";
 export {
   verifyInviteToken,
   acceptInvite,
+  createInvitation,
   type InviteVerifyResult,
 } from "./api/invite";
 export { AuthShell } from "./components/AuthShell";

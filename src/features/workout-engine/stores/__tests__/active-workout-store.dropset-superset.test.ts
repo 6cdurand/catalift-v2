@@ -26,10 +26,10 @@ function getBlocks(): WorkoutBlock[] {
 function addStraight(exerciseId: string, exerciseName: string): string {
   useActiveWorkoutStore.getState().addExercise({ exerciseId, exerciseName });
   const block = getBlocks().find(
-    (b) => b.kind === 'straight' && b.exercise.exerciseId === exerciseId,
+    (b) => b.kind === 'straight' && b.exercises[0]?.exerciseId === exerciseId,
   );
   if (block?.kind !== 'straight') throw new Error('straight block not found');
-  return block.exercise.id;
+  return block.exercises[0].id;
 }
 
 describe('active-workout-store — drop sets (v1 :1322)', () => {
@@ -54,8 +54,8 @@ describe('active-workout-store — drop sets (v1 :1322)', () => {
 
     const block = getBlocks()[0];
     if (block.kind !== 'straight') return;
-    expect(block.exercise.sets).toHaveLength(2);
-    for (const s of block.exercise.sets) {
+    expect(block.exercises[0].sets).toHaveLength(2);
+    for (const s of block.exercises[0].sets) {
       expect(s.drops).toHaveLength(1);
       expect(s.drops![0]).toMatchObject({ weight: 0, reps: 0 });
       expect(s.drops![0].id).toMatch(uuidRegex);
@@ -73,7 +73,7 @@ describe('active-workout-store — drop sets (v1 :1322)', () => {
 
     const block = getBlocks()[0];
     if (block.kind !== 'straight') return;
-    expect(block.exercise.sets[0].drops).toHaveLength(2);
+    expect(block.exercises[0].sets[0].drops).toHaveLength(2);
   });
 
   it('addDropSet with no sets is a safe no-op (nothing to attach to)', () => {
@@ -83,7 +83,7 @@ describe('active-workout-store — drop sets (v1 :1322)', () => {
 
     const block = getBlocks()[0];
     if (block.kind !== 'straight') return;
-    expect(block.exercise.sets).toHaveLength(0);
+    expect(block.exercises[0].sets).toHaveLength(0);
   });
 
   it('updateDrop edits a single drop by id; removeDrop deletes it', () => {
@@ -95,18 +95,18 @@ describe('active-workout-store — drop sets (v1 :1322)', () => {
 
     let block = getBlocks()[0];
     if (block.kind !== 'straight') return;
-    const setId = block.exercise.sets[0].id;
-    const dropId = block.exercise.sets[0].drops![0].id;
+    const setId = block.exercises[0].sets[0].id;
+    const dropId = block.exercises[0].sets[0].drops![0].id;
 
     store.updateDrop(entryId, setId, dropId, { weight: 60, reps: 8 });
     block = getBlocks()[0];
     if (block.kind !== 'straight') return;
-    expect(block.exercise.sets[0].drops![0]).toMatchObject({ weight: 60, reps: 8 });
+    expect(block.exercises[0].sets[0].drops![0]).toMatchObject({ weight: 60, reps: 8 });
 
     store.removeDrop(entryId, setId, dropId);
     block = getBlocks()[0];
     if (block.kind !== 'straight') return;
-    expect(block.exercise.sets[0].drops).toHaveLength(0);
+    expect(block.exercises[0].sets[0].drops).toHaveLength(0);
   });
 
   it('drop tonnage folds into finishWorkout totalVolume (G-13) and round-trips', async () => {
@@ -117,14 +117,14 @@ describe('active-workout-store — drop sets (v1 :1322)', () => {
 
     let block = getBlocks()[0];
     if (block.kind !== 'straight') return;
-    const setId = block.exercise.sets[0].id;
+    const setId = block.exercises[0].sets[0].id;
 
     store.updateSet(entryId, setId, { weight: 100, reps: 5 }); // 500
     store.addDropSet(entryId);
 
     block = getBlocks()[0];
     if (block.kind !== 'straight') return;
-    const dropId = block.exercise.sets[0].drops![0].id;
+    const dropId = block.exercises[0].sets[0].drops![0].id;
     store.updateDrop(entryId, setId, dropId, { weight: 60, reps: 8 }); // 480
     store.completeSet(entryId, setId);
 
@@ -136,8 +136,8 @@ describe('active-workout-store — drop sets (v1 :1322)', () => {
     const restored = fromRow(toRow(result!));
     const rb = restored.blocks[0];
     if (rb.kind !== 'straight') return;
-    expect(rb.exercise.sets[0].drops).toHaveLength(1);
-    expect(rb.exercise.sets[0].drops![0]).toMatchObject({ weight: 60, reps: 8 });
+    expect(rb.exercises[0].sets[0].drops).toHaveLength(1);
+    expect(rb.exercises[0].sets[0].drops![0]).toMatchObject({ weight: 60, reps: 8 });
   });
 });
 
