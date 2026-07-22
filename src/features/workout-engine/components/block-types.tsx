@@ -6,7 +6,7 @@
 import { Flame, Dumbbell, Zap, Heart, RotateCcw } from "lucide-react";
 import type { ReactNode } from "react";
 import type { BlockType } from "@/types";
-import type { BlockKind } from "../types";
+import type { BlockKind, StraightBlockType } from "../types";
 
 export interface BlockTypeMeta {
   value: BlockType;
@@ -106,6 +106,29 @@ const KIND_TO_TYPE: Record<BlockKind, BlockType> = {
 
 export function getBlockStylesFromKind(kind: BlockKind): BlockStyles {
   return getBlockStyles(KIND_TO_TYPE[kind] ?? "work");
+}
+
+// v1-parity: a straight block is a TYPED container (warmup / strength / cooldown).
+// Its coloured card + chip + title come from the same per-type map used everywhere else
+// (strength → v2 `work` = blue/Dumbbell; warmup = yellow/Flame; cooldown = purple).
+const STRAIGHT_TYPE_TO_BLOCK_TYPE: Record<StraightBlockType, BlockType> = {
+  warmup: "warmup",
+  strength: "work",
+  cooldown: "cooldown",
+};
+
+const STRAIGHT_TYPE_LABEL: Record<StraightBlockType, string> = {
+  warmup: "Warm-Up",
+  strength: "Strength",
+  cooldown: "Cool-Down",
+};
+
+export function getStraightBlockStyles(blockType: StraightBlockType): BlockStyles {
+  return getBlockStyles(STRAIGHT_TYPE_TO_BLOCK_TYPE[blockType] ?? "work");
+}
+
+export function getStraightBlockLabel(blockType: StraightBlockType): string {
+  return STRAIGHT_TYPE_LABEL[blockType] ?? "Strength";
 }
 
 export function getBlockTypeMeta(type: BlockType): BlockTypeMeta | undefined {

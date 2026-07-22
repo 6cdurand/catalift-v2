@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus, Play, Pause, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ExerciseCard } from './ExerciseCard';
+import { ExerciseCard, type ExercisePBBadges } from './ExerciseCard';
 import { BlockMenu } from './BlockMenu';
 import { getBlockStylesFromKind } from './block-types';
 import type { WorkoutBlock, ExerciseEntry, LoggedSet } from '../types';
@@ -29,6 +29,8 @@ interface CircuitCardProps {
   onRemoveBlock: (blockId: string) => void;
   onAddRound: (circuitBlockId: string) => void;
   restTimers?: Record<string, { remaining: number; total: number }>;
+  /** Optional PB/previous/volume badges per station (keyed by entry.id). Forwarded to each ExerciseCard. */
+  badgesByEntryId?: Record<string, ExercisePBBadges>;
 }
 
 export function CircuitCard({
@@ -42,6 +44,7 @@ export function CircuitCard({
   onRemoveBlock,
   onAddRound,
   restTimers,
+  badgesByEntryId,
 }: CircuitCardProps) {
   const styles = getBlockStylesFromKind(block.kind);
   const stationCount = block.stations.length;
@@ -144,6 +147,7 @@ export function CircuitCard({
             onRemoveExercise={onRemoveExercise}
             hideAddSet
             restTimers={restTimers}
+            {...(badgesByEntryId?.[entry.id] ?? {})}
           />
         ))}
       </div>

@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Heart, Flame, Dumbbell, Zap, Link2, Pause, Play } from 'lucide-react';
+import { Heart, Flame, Dumbbell, Zap, Link2, Pause, Play, ChevronDown, StickyNote, Timer } from 'lucide-react';
 import { exerciseLibrary, allExercises } from '@/lib/exercises';
 import {
   createAndPersistCustomExercise,
@@ -27,8 +27,6 @@ import { searchExercises } from '@/lib/exerciseSearch';
 import type { Exercise } from '@/types';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
 import { useActiveWorkoutStore } from '@/features/workout-engine/stores/active-workout-store';
-// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
-import { ExerciseCard } from '@/features/workout-engine/components/ExerciseCard';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
 import { CardioCard } from '@/features/workout-engine/components/CardioCard';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
@@ -47,10 +45,38 @@ import {
   type WorkoutHistoryBlocks,
 } from '@/features/workout-engine/api/fetch-history';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
-import { detectNewPRs, buildPreviousBests } from '@/features/workout-engine/lib/history-stats';
+import {
+  detectNewPRs,
+  buildPreviousBests,
+  newPersonalBestOneRm,
+  type PreviousBest,
+} from '@/features/workout-engine/lib/history-stats';
 // eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
 import { upsertPersonalBests } from '@/features/workout-engine/api/upsert-personal-bests';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import {
+  fetchPersonalBests,
+  type PersonalBestItem,
+} from '@/features/workout-engine/api/fetch-personal-bests';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import { computeSetVolume } from '@/features/workout-engine/lib/volume';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import { StraightBlockCard } from '@/features/workout-engine/components/StraightBlockCard';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import type { ExercisePBBadges } from '@/features/workout-engine/components/ExerciseCard';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import type { ExerciseEntry, WorkoutBlock, StraightBlockType } from '@/features/workout-engine/types';
 import { getExerciseAnimationUrl } from '@/lib/exerciseAnimations';
+import { getExerciseById, getMuscleDisplayName } from '@/lib/exercises';
+import { normalizeExerciseId } from '@/lib/exerciseStats';
+import type { MuscleGroup } from '@/types';
+import { toast } from 'sonner';
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import shared UI
+import { Toaster } from '@/components/ui/sonner';
+
+// Blue photo header backdrop (v1 active header ~2919-3060). Athlete-context sky theme.
+const WORKOUT_HEADER_IMAGE =
+  'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800&h=300&fit=crop&crop=center';
 
 // Small exercise-picker thumbnail (v1 fidelity). Fallback = no image box, just the
 // name (v1 active/page.tsx:4941). Render wire-up only.
@@ -512,77 +538,6 @@ function AddBlockModal({
   );
 }
 
-// Block-type picker — the single "+" entry point (faithful port of v1 active/page.tsx:5269).
-// 2×2 colour-coded tiles: Warm-Up / Strength / Circuit / Cardio. In the v2 logged model
-// there is no distinct "warmup" kind, so Warm-Up + Strength both open the straight-exercise
-// picker (DQ-1 union: straight/superset/circuit/cardio). Circuit + Cardio open their pickers.
-function BlockTypePicker({
-  onPickStraight,
-  onPickCircuit,
-  onPickCardio,
-  onClose,
-}: {
-  onPickStraight: () => void;
-  onPickCircuit: () => void;
-  onPickCardio: () => void;
-  onClose: () => void;
-}) {
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      role="dialog"
-      aria-label="Add block"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-lg p-6 w-full max-w-xs"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-lg font-medium text-gray-900">Add Block</h3>
-        <p className="text-sm text-gray-500 mb-4">Choose a block type to add exercises to</p>
-        <div className="grid grid-cols-2 gap-3 py-2">
-          <button
-            onClick={onPickStraight}
-            className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-yellow-500/30 bg-yellow-500/10 hover:bg-yellow-500/20 transition-colors"
-          >
-            <span className="w-10 h-10 rounded-full bg-yellow-400 inline-flex items-center justify-center">
-              <Flame className="w-5 h-5 text-white" />
-            </span>
-            <span className="text-sm font-semibold text-yellow-600">Warm-Up</span>
-          </button>
-          <button
-            onClick={onPickStraight}
-            className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 transition-colors"
-          >
-            <span className="w-10 h-10 rounded-full bg-blue-500 inline-flex items-center justify-center">
-              <Dumbbell className="w-5 h-5 text-white" />
-            </span>
-            <span className="text-sm font-semibold text-blue-600">Strength</span>
-          </button>
-          <button
-            onClick={onPickCircuit}
-            className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-orange-500/30 bg-orange-500/10 hover:bg-orange-500/20 transition-colors"
-          >
-            <span className="w-10 h-10 rounded-full bg-orange-400 inline-flex items-center justify-center">
-              <Zap className="w-5 h-5 text-white" />
-            </span>
-            <span className="text-sm font-semibold text-orange-600">Circuit</span>
-          </button>
-          <button
-            onClick={onPickCardio}
-            className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 transition-colors"
-          >
-            <span className="w-10 h-10 rounded-full bg-rose-400 inline-flex items-center justify-center">
-              <Heart className="w-5 h-5 text-white" />
-            </span>
-            <span className="text-sm font-semibold text-rose-600">Cardio</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // Superset picker — faithful port of v1 active/page.tsx:6006. Pick a SECOND straight
 // exercise to pair with the source; both merge into one A1/A2 superset block.
 function SupersetPicker({
@@ -664,6 +619,9 @@ export default function ActiveWorkoutPage() {
     tickTimer,
     restTimer,
     startWorkout,
+    addBlock,
+    setActiveBlock,
+    setWorkoutNotes,
     addExercise,
     removeExercise,
     addCircuitBlock,
@@ -692,8 +650,8 @@ export default function ActiveWorkoutPage() {
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [showAddCardio, setShowAddCardio] = useState(false);
   const [showAddBlock, setShowAddBlock] = useState<'superset' | 'circuit' | false>(false);
-  // Single "+" entry point → v1 2×2 block-type picker (AC #3).
-  const [showBlockTypePicker, setShowBlockTypePicker] = useState(false);
+  // v1 header note control (#82): toggles the note panel below the blue header.
+  const [showNotes, setShowNotes] = useState(false);
   // Superset creation source (v1 :1336): the straight exercise the user chose to pair.
   const [supersetSource, setSupersetSource] = useState<{ entryId: string; name: string } | null>(null);
   const [readyToRedirect, setReadyToRedirect] = useState(false);
@@ -704,6 +662,13 @@ export default function ActiveWorkoutPage() {
   const historyRef = useRef<WorkoutHistoryBlocks[]>([]);
   // B1: Per-set rest timers (ported from v1 active/page.tsx:408)
   const [setRestTimers, setSetRestTimers] = useState<Record<string, { remaining: number; total: number }>>({});
+  // #83 PB badges: all-time PBs keyed by normalized exerciseId (from personal_bests) —
+  // feeds the 🏆 PB badge + volume bar + the once-per-exercise PB toast. Best-effort.
+  const [personalBests, setPersonalBests] = useState<Record<string, PersonalBestItem>>({});
+  // Previous-session context (date + last sets) keyed by exerciseId — feeds the 🕐 badge.
+  const [previousBests, setPreviousBestsState] = useState<Record<string, PreviousBest>>({});
+  // PB toast de-dupe: exerciseIds already celebrated this session (fire once per exercise).
+  const toastedPbRef = useRef<Set<string>>(new Set());
 
   // Real session (BUG-014 fix)
   const { user, loading } = useSession();
@@ -787,7 +752,9 @@ export default function ActiveWorkoutPage() {
       .then((hist) => {
         if (cancelled) return;
         historyRef.current = hist;
-        setPreviousBests(buildPreviousBests(hist));
+        const prev = buildPreviousBests(hist);
+        setPreviousBests(prev); // store: tap-to-fill (weight/reps)
+        setPreviousBestsState(prev); // local: 🕐 badge (date + last sets)
       })
       .catch(() => {
         /* history is best-effort; the Previous column just stays blank */
@@ -796,6 +763,26 @@ export default function ActiveWorkoutPage() {
       cancelled = true;
     };
   }, [user, setPreviousBests]);
+
+  // #83: Load all-time PBs (personal_bests) for the 🏆 badge + volume bar + PB toast.
+  // Read-only, RLS-scoped, best-effort — badges simply stay hidden on failure.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    fetchPersonalBests(user.id)
+      .then((pbs) => {
+        if (cancelled) return;
+        const map: Record<string, PersonalBestItem> = {};
+        for (const pb of pbs) map[normalizeExerciseId(pb.exerciseId)] = pb;
+        setPersonalBests(map);
+      })
+      .catch(() => {
+        /* PBs are best-effort; badges just stay hidden */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   if (loading || redirect !== null) return null;
 
@@ -813,6 +800,38 @@ export default function ActiveWorkoutPage() {
     );
   }
 
+  // Flatten a block into its exercise entries (straight/superset hold `exercises`,
+  // circuit holds `stations`, cardio has none). Shared by the PB toast + badge builders.
+  const entriesOfBlock = (b: WorkoutBlock): ExerciseEntry[] => {
+    if (b.kind === 'straight') return b.exercises;
+    if (b.kind === 'superset') return b.exercises;
+    if (b.kind === 'circuit') return b.stations;
+    return [];
+  };
+
+  // #83 PB toast: when the just-completed set's e1RM beats the prior all-time best for
+  // that exercise, celebrate ONCE per exercise per session (toastedPbRef guard). Drops
+  // never feed e1RM (types.ts) — only the parent working set can set a PB.
+  const maybeCelebratePb = (entryId: string, setId: string) => {
+    for (const b of activeWorkout?.blocks ?? []) {
+      const entry = entriesOfBlock(b).find((e) => e.id === entryId);
+      if (!entry) continue;
+      const set = entry.sets.find((s) => s.id === setId);
+      if (!set) return;
+      const normId = normalizeExerciseId(entry.exerciseId);
+      if (toastedPbRef.current.has(normId)) return;
+      const priorBest = personalBests[normId]?.oneRepMax ?? 0;
+      const e1rm = newPersonalBestOneRm(set.weight, set.reps, priorBest);
+      if (e1rm != null) {
+        toastedPbRef.current.add(normId);
+        toast.success(
+          `New Personal Best! 🏆 ${entry.exerciseName} · ${set.weight}kg × ${set.reps} (${Math.round(e1rm)}kg e1RM)`,
+        );
+      }
+      return;
+    }
+  };
+
   // B1: Wrap completeSet to start per-set rest timer (ported from v1)
   const handleCompleteSet = (entryId: string, setId: string) => {
     completeSet(entryId, setId);
@@ -821,6 +840,8 @@ export default function ActiveWorkoutPage() {
       ...prev,
       [setId]: { remaining: 90, total: 90 },
     }));
+    // PB celebration (once per exercise) — compare against the prior all-time best.
+    maybeCelebratePb(entryId, setId);
   };
 
   // Superset creation (v1 :1336): open the picker seeded with the source straight exercise.
@@ -845,6 +866,80 @@ export default function ActiveWorkoutPage() {
             .map((e) => ({ entryId: e.id, name: e.exerciseName, setCount: e.sets.length }))
         : [],
     );
+
+  // v1-parity Add: chip bar (#82) — each chip creates a NEW typed block (or opens the
+  // circuit/cardio picker) and opens the exercise picker. `addBlock` sets the new block
+  // active, so the subsequent addExercise lands inside it (inheriting blockType, no prompt).
+  const startTypedBlock = (blockType: StraightBlockType) => {
+    addBlock(blockType);
+    setShowAddExercise(true);
+  };
+  const openCircuitPicker = () => setShowAddBlock('circuit');
+  const openCardioPicker = () => setShowAddCardio(true);
+
+  // In-block "Add Exercise to Block" (v1 :4307-4323): target this block, open the picker.
+  // No type prompt — addExercise appends to the active block, inheriting its blockType.
+  const handleAddExerciseToBlock = (blockId: string) => {
+    setActiveBlock(blockId);
+    setShowAddExercise(true);
+  };
+
+  // Sets done {completed}/{total} across ALL blocks (cardio has no logged sets).
+  // v1 active header counter (~2919-3060).
+  const setsProgress = (activeWorkout?.blocks ?? []).reduce(
+    (acc, block) => {
+      for (const entry of entriesOfBlock(block)) {
+        for (const s of entry.sets) {
+          acc.total += 1;
+          if (s.completed) acc.completed += 1;
+        }
+      }
+      return acc;
+    },
+    { completed: 0, total: 0 },
+  );
+
+  // Rest control (v1 header pause/note/rest). Toggles the global 90s rest timer.
+  const toggleRestTimer = () => {
+    if (restTimer.isRunning) resetRestTimer();
+    else startRestTimer(90);
+  };
+
+  // #83: assemble the optional PB/previous/volume badge props for one exercise entry
+  // (v1 ~3900-3960). PB from personal_bests (normalized id), muscle from the library,
+  // previous session from buildPreviousBests, today's volume computed live (G-13).
+  const buildEntryBadges = (entry: ExerciseEntry): ExercisePBBadges => {
+    const normId = normalizeExerciseId(entry.exerciseId);
+    const pbItem = personalBests[normId];
+    const primary = getExerciseById(entry.exerciseId)?.primaryMuscles?.[0];
+    const prev = previousBests[entry.exerciseId];
+    const prevLast = prev?.lastSets?.[prev.lastSets.length - 1];
+    const prevWeight = prevLast?.weight ?? prev?.weight ?? null;
+    const prevReps = prevLast?.reps ?? prev?.reps ?? null;
+    return {
+      pb: pbItem
+        ? {
+            bestWeight: pbItem.bestWeight,
+            bestReps: pbItem.bestReps,
+            oneRepMax: pbItem.oneRepMax,
+            bestVolume: pbItem.bestVolume,
+          }
+        : undefined,
+      todayVolume: entry.sets.reduce((a, s) => a + computeSetVolume(s), 0),
+      muscleLabel: primary ? getMuscleDisplayName(primary as MuscleGroup) : undefined,
+      previousDate: prev?.date ?? null,
+      previousSummary:
+        prevWeight != null && prevReps != null
+          ? `${Math.abs(prevWeight)}×${prevReps}`
+          : null,
+    };
+  };
+
+  // Badge props keyed by entry.id — forwarded to straight/superset/circuit ExerciseCards.
+  const badgesByEntryId: Record<string, ExercisePBBadges> = {};
+  for (const block of activeWorkout?.blocks ?? []) {
+    for (const e of entriesOfBlock(block)) badgesByEntryId[e.id] = buildEntryBadges(e);
+  }
 
   const handleFinish = async () => {
     if (isFinishing) return;
@@ -876,34 +971,137 @@ export default function ActiveWorkoutPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header: workout name + timer + pause + finish button (B1: added pause) */}
-      <div className="sticky top-0 bg-white border-b border-gray-100 z-10">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div>
-            <p className="font-medium text-gray-900">
-              {activeWorkout?.name || 'Workout'}
-            </p>
-            <p className="text-xs text-gray-500">{formatTime(workoutTimerSeconds)}</p>
+      {/* Blue photo header panel (faithful port of v1 active header ~2919-3060):
+          Minimize · Duration · pause/note/rest · Sets done · Finish. */}
+      <div className="sticky top-0 z-20" data-testid="active-workout-header">
+        <div className="relative overflow-hidden px-4 pt-10 pb-4">
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${WORKOUT_HEADER_IMAGE})` }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-sky-600/90 via-sky-600/85 to-sky-700/95" />
+          <div className="relative">
+            {/* Top row: Minimize · name · Finish */}
+            <div className="flex items-center justify-between gap-2">
+              <button
+                onClick={() => router.push('/today')}
+                aria-label="Minimize workout"
+                title="Minimize"
+                className="p-2 -ml-1 rounded-xl bg-white/15 hover:bg-white/25 transition-colors backdrop-blur-sm"
+              >
+                <ChevronDown className="w-5 h-5 text-white" />
+              </button>
+              <p className="flex-1 min-w-0 text-center font-semibold text-white truncate">
+                {activeWorkout?.name || 'Workout'}
+              </p>
+              <Button
+                onClick={handleFinish}
+                disabled={isFinishing}
+                className="bg-white text-sky-600 hover:bg-white/90 font-semibold"
+              >
+                {isFinishing ? 'Saving...' : 'Finish'}
+              </Button>
+            </div>
+
+            {/* Duration */}
+            <div className="mt-3 text-center">
+              <p className="text-3xl font-bold text-white tabular-nums leading-none">
+                {formatTime(workoutTimerSeconds)}
+              </p>
+              <p className="mt-1 text-[11px] uppercase tracking-wide text-white/70">Duration</p>
+            </div>
+
+            {/* Controls: pause · note · rest */}
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <button
+                onClick={() => (timerRunning ? pauseWorkoutTimer() : resumeWorkoutTimer())}
+                title={timerRunning ? 'Pause workout' : 'Resume workout'}
+                aria-label={timerRunning ? 'Pause workout' : 'Resume workout'}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 transition-colors text-white text-sm backdrop-blur-sm"
+              >
+                {timerRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                {timerRunning ? 'Pause' : 'Resume'}
+              </button>
+              <button
+                onClick={() => setShowNotes((v) => !v)}
+                aria-label="Workout note"
+                aria-pressed={showNotes}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 transition-colors text-white text-sm backdrop-blur-sm"
+              >
+                <StickyNote className="w-4 h-4" />
+                Note
+              </button>
+              <button
+                onClick={toggleRestTimer}
+                aria-label="Rest timer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 transition-colors text-white text-sm backdrop-blur-sm"
+              >
+                <Timer className="w-4 h-4" />
+                {restTimer.isRunning
+                  ? `${Math.floor(restTimer.seconds / 60)}:${(restTimer.seconds % 60).toString().padStart(2, '0')}`
+                  : 'Rest'}
+              </button>
+            </div>
+
+            {/* Sets done counter */}
+            <div className="mt-3 text-center">
+              <span className="text-sm text-white/90" data-testid="sets-done-counter">
+                Sets done{' '}
+                <span className="font-bold text-white">
+                  {setsProgress.completed}/{setsProgress.total}
+                </span>
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* B1: Pause/Resume button (ported from v1) */}
-            <Button
-              onClick={() => (timerRunning ? pauseWorkoutTimer() : resumeWorkoutTimer())}
-              variant="ghost"
-              size="icon"
-              className="text-gray-500 hover:text-gray-700"
-              title={timerRunning ? 'Pause workout' : 'Resume workout'}
-            >
-              {timerRunning ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-            </Button>
-            <Button
-              onClick={handleFinish}
-              disabled={isFinishing}
-              className="bg-sky-500 text-white"
-            >
-              {isFinishing ? 'Saving...' : 'Finish'}
-            </Button>
+        </div>
+
+        {/* Note panel (v1 header note control) */}
+        {showNotes && (
+          <div className="bg-white border-b border-gray-100 px-4 py-3">
+            <Label htmlFor="workout-notes" className="text-xs text-gray-500">
+              Workout note
+            </Label>
+            <textarea
+              id="workout-notes"
+              value={activeWorkout?.notes ?? ''}
+              onChange={(e) => setWorkoutNotes(e.target.value)}
+              placeholder="How did this session feel?"
+              rows={2}
+              className="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+            />
           </div>
+        )}
+      </div>
+
+      {/* Add: coloured chip bar (v1 ~3100-3155). Each chip creates a NEW typed block
+          (Warm-Up/Strength → straight; Circuit/Cardio → their pickers) — v1 parity. */}
+      <div className="border-b border-gray-100 px-4 py-3" data-testid="add-chip-bar">
+        <div className="flex items-center gap-2 overflow-x-auto">
+          <span className="shrink-0 text-xs font-medium text-gray-500">Add:</span>
+          <button
+            onClick={() => startTypedBlock('warmup')}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-yellow-500/40 bg-yellow-500/10 px-3 py-1.5 text-sm font-medium text-yellow-600 hover:bg-yellow-500/20 transition-colors"
+          >
+            <Flame className="w-4 h-4" /> Warm-Up
+          </button>
+          <button
+            onClick={() => startTypedBlock('strength')}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-500/20 transition-colors"
+          >
+            <Dumbbell className="w-4 h-4" /> Strength
+          </button>
+          <button
+            onClick={openCircuitPicker}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-orange-500/40 bg-orange-500/10 px-3 py-1.5 text-sm font-medium text-orange-600 hover:bg-orange-500/20 transition-colors"
+          >
+            <Zap className="w-4 h-4" /> Circuit
+          </button>
+          <button
+            onClick={openCardioPicker}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-sm font-medium text-rose-600 hover:bg-rose-500/20 transition-colors"
+          >
+            <Heart className="w-4 h-4" /> Cardio
+          </button>
         </div>
       </div>
 
@@ -912,25 +1110,24 @@ export default function ActiveWorkoutPage() {
         {activeWorkout?.blocks.map((block) => {
           if (block.kind === 'straight') {
             return (
-              <div key={block.id}>
-                {block.exercises.map((entry) => (
-                  <ExerciseCard
-                    key={entry.id}
-                    entry={entry}
-                    onAddSet={addSet}
-                    onUpdateSet={updateSet}
-                    onCompleteSet={handleCompleteSet}
-                    onUncompleteSet={uncompleteSet}
-                    onRemoveSet={removeSet}
-                    onRemoveExercise={removeExercise}
-                    onCreateSuperset={handleOpenSupersetPicker}
-                    onAddDropSet={addDropSet}
-                    onUpdateDrop={updateDrop}
-                    onRemoveDrop={removeDrop}
-                    restTimers={setRestTimers}
-                  />
-                ))}
-              </div>
+              <StraightBlockCard
+                key={block.id}
+                block={block}
+                onAddSet={addSet}
+                onUpdateSet={updateSet}
+                onCompleteSet={handleCompleteSet}
+                onUncompleteSet={uncompleteSet}
+                onRemoveSet={removeSet}
+                onRemoveExercise={removeExercise}
+                onRemoveBlock={removeBlock}
+                onAddExerciseToBlock={handleAddExerciseToBlock}
+                onCreateSuperset={handleOpenSupersetPicker}
+                onAddDropSet={addDropSet}
+                onUpdateDrop={updateDrop}
+                onRemoveDrop={removeDrop}
+                restTimers={setRestTimers}
+                badgesByEntryId={badgesByEntryId}
+              />
             );
           }
           if (block.kind === 'cardio') {
@@ -959,6 +1156,7 @@ export default function ActiveWorkoutPage() {
                 onUpdateDrop={updateDrop}
                 onRemoveDrop={removeDrop}
                 restTimers={setRestTimers}
+                badgesByEntryId={badgesByEntryId}
               />
             );
           }
@@ -976,22 +1174,12 @@ export default function ActiveWorkoutPage() {
                 onRemoveBlock={removeBlock}
                 onAddRound={addRound}
                 restTimers={setRestTimers}
+                badgesByEntryId={badgesByEntryId}
               />
             );
           }
           return null;
         })}
-      </div>
-
-      {/* Single "+" entry point → v1 2×2 block-type picker (AC #3). */}
-      <div className="p-4">
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => setShowBlockTypePicker(true)}
-        >
-          <Plus className="w-4 h-4 mr-2" /> Add Block
-        </Button>
       </div>
 
       {showAddExercise && (
@@ -1013,24 +1201,6 @@ export default function ActiveWorkoutPage() {
           }}
           onClose={() => setShowAddCardio(false)}
           userId={user?.id}
-        />
-      )}
-
-      {showBlockTypePicker && (
-        <BlockTypePicker
-          onPickStraight={() => {
-            setShowBlockTypePicker(false);
-            setShowAddExercise(true);
-          }}
-          onPickCircuit={() => {
-            setShowBlockTypePicker(false);
-            setShowAddBlock('circuit');
-          }}
-          onPickCardio={() => {
-            setShowBlockTypePicker(false);
-            setShowAddCardio(true);
-          }}
-          onClose={() => setShowBlockTypePicker(false)}
         />
       )}
 
@@ -1061,6 +1231,10 @@ export default function ActiveWorkoutPage() {
           userId={user?.id}
         />
       )}
+
+      {/* Toast host — /workout/active is outside the (app) group, so it has no Toaster.
+          Mount one here for the PB celebration (sonner). */}
+      <Toaster />
     </div>
   );
 }
