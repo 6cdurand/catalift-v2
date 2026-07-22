@@ -8,14 +8,14 @@ import type { StateStorage } from 'zustand/middleware';
 import type { LoggedWorkout, WorkoutBlock, LoggedSet, CardioPayload, ExerciseEntry, DropSet, StraightBlockType } from '../types';
 import { newId } from '../lib/ids';
 import { computeTotalVolume } from '../lib/volume';
-import { toRow } from '../lib/serialize';
+import { toRow, upgradeBlocks } from '../lib/serialize';
 import { persist as persistWorkout } from '../api/persist';
 import { getIdbItem, setIdbItem, removeIdbItem } from '@/lib/storage';
 
 export function entriesOfBlock(block: WorkoutBlock): ExerciseEntry[] {
-  if (block.kind === 'straight') return block.exercises;
-  if (block.kind === 'superset') return block.exercises;
-  if (block.kind === 'circuit') return block.stations;
+  if (block.kind === 'straight') return block.exercises ?? [];
+  if (block.kind === 'superset') return block.exercises ?? [];
+  if (block.kind === 'circuit') return block.stations ?? [];
   return []; // cardio has no entries
 }
 
@@ -725,6 +725,16 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
         restTimer: state.restTimer, // B1: persist rest timer
         activeBlockId: state.activeBlockId, // keep in-block "Add Exercise" target across reloads
       }),
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<ActiveWorkoutState>;
+        if (persisted?.activeWorkout?.blocks) {
+          persisted.activeWorkout = {
+            ...persisted.activeWorkout,
+            blocks: upgradeBlocks(persisted.activeWorkout.blocks),
+          };
+        }
+        return { ...currentState, ...persisted };
+      },
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },
