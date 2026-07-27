@@ -39,8 +39,8 @@ export async function verifyInviteToken(
     return { status: "invalid" };
   }
 
-  const row = data as { email: string; trainer_name: string; valid: boolean };
-  if (row.valid) {
+  const row = Array.isArray(data) ? data[0] : data;
+  if (row?.valid) {
     return { status: "valid", email: row.email };
   }
   return { status: "invalid" };
