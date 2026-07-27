@@ -74,14 +74,15 @@ test.describe("Auth — branded UI + flows", () => {
     ).toBeVisible();
   });
 
-  // G-25: invite acceptance is feature-flagged OFF — a token shows the
-  // "coming soon" state and NEVER opens a password-setup form.
-  test("invite with a token shows the disabled state, no setup form", async ({
+  // G-25: invite acceptance is enabled (FEATURE_FLAGS.invites = true). With no
+  // backend mock for the verify_invitation RPC, the token is invalid — the page
+  // shows "Invalid Invitation" and NEVER opens a password-setup form.
+  test("invite with an invalid token shows the invalid state, no setup form", async ({
     page,
   }) => {
     await page.goto("/invite?token=sometoken123");
 
-    await expect(page.getByText("Invitations Coming Soon")).toBeVisible();
+    await expect(page.getByText("Invalid Invitation")).toBeVisible();
     await expect(page.getByText("Set Up Your Account")).toHaveCount(0);
   });
 

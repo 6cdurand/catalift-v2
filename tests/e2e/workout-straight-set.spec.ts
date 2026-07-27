@@ -11,11 +11,10 @@ test.describe('Straight-set execution', () => {
   });
 
   test('add exercise → log set → finish → workout saves', async ({ page }) => {
-    // Wait for page to be ready (workout should auto-start)
-    await page.waitForTimeout(2000); // Give time for workout to auto-start and hydration
+    // Wait for page to be ready (add-chip-bar renders when workout is active)
+    await expect(page.getByTestId('add-chip-bar')).toBeVisible();
 
-    // Add an exercise via the v1 2×2 block-type picker (+ → Strength tile)
-    await page.getByRole('button', { name: 'Add Block' }).click();
+    // Add a strength exercise (Strength chip → exercise picker opens immediately)
     await page.getByRole('button', { name: 'Strength' }).click();
     await page.fill('input[placeholder*="Search exercises"]', 'Bench');
     // Click the first result (Barbell Bench Press)
