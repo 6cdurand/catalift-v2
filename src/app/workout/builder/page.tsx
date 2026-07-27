@@ -16,11 +16,11 @@
 // the session appears on the target client's Today/Calendar via useScheduledSessions
 // → getNextProgramWorkout (the existing derivation path).
 //
-// COEXISTENCE NOTE: useActiveClientProgram and useScheduledSessions both select the
-// FIRST active program (programs.find(p => p.status === 'active')). If a client
-// already has an active multi-week program, assigning a one-off creates a second
-// active program — whichever comes first in the array wins on Today. This is flagged
-// as a follow-up; the common case (client with no active program) works cleanly.
+// COEXISTENCE: useActiveClientProgram and useScheduledSessions use
+// selectActivePrograms (features/programs/lib/select-active-programs.ts) to
+// deterministically separate a dated one-off (single-day, 1 day/week) from the
+// ongoing multi-week program. The one-off surfaces on its startDate only; the
+// multi-week program is never mutated and resumes the next day.
 //
 // Not built (no tables in v2):
 //   - Workout library / circuit library (no workout_library / circuit_library tables)

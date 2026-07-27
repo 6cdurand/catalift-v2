@@ -14,6 +14,7 @@ import { useSession } from "@/features/auth";
 import {
   deriveCompletedDayIndices,
   getNextProgramWorkout,
+  selectActivePrograms,
   useProgramsStore,
   type ClientProgram,
   type NextWorkoutResult,
@@ -62,19 +63,43 @@ export function buildScheduledSessionsResult(args: {
   rangeStart: string;
   rangeEnd: string;
   today: string;
+  oneOffProgram?: ClientProgram | null;
+  oneOffNext?: NextWorkoutResult | null;
 }): { sessions: ScheduledSession[]; todaySessions: ScheduledSession[] } {
-  const { program, next, completedDates, rangeStart, rangeEnd, today } = args;
+  const { program, next, completedDates, rangeStart, rangeEnd, today, oneOffProgram, oneOffNext } = args;
 
-  if (!program) return { sessions: [], todaySessions: [] };
+  if (!program && !oneOffProgram) return { sessions: [], todaySessions: [] };
 
-  const sessions = buildScheduledSessions({
-    program,
-    next,
-    completedDates,
-    rangeStart,
-    rangeEnd,
-    today,
-  });
+  let sessions: ScheduledSession[] = [];
+
+  if (program && next) {
+    sessions = buildScheduledSessions({
+      program,
+      next,
+      completedDates,
+      rangeStart,
+      rangeEnd,
+      today,
+    });
+  }
+
+  // Overlay: dated one-off takes precedence on its startDate only.
+  if (oneOffProgram && oneOffNext && oneOffNext.day) {
+    const oneOffDate = oneOffProgram.startDate;
+    if (oneOffDate >= rangeStart && oneOffDate <= rangeEnd) {
+      const oneOffSessions = buildScheduledSessions({
+        program: oneOffProgram,
+        next: oneOffNext,
+        completedDates,
+        rangeStart,
+        rangeEnd,
+        today: oneOffDate,
+      });
+      // Remove base sessions on the one-off's date (precedence).
+      sessions = sessions.filter((s) => s.date !== oneOffDate);
+      sessions = [...sessions, ...oneOffSessions];
+    }
+  }
 
   const todaySessions = getSessionsForDate(sessions, today);
 
@@ -93,10 +118,11 @@ export function useScheduledSessions(
 
   const { user } = useSession();
 
-  // Read active program from the store (no cross-feature mutation).
+  // Read active programs from the store (no cross-feature mutation).
   const clientPrograms = useProgramsStore((s) => s.clientPrograms);
-  const activeProgram =
-    clientPrograms.find((p) => p.status === "active") ?? null;
+  const todayISO = toISODate(new Date());
+  const { baseProgram, oneOffForToday } = selectActivePrograms(clientPrograms, todayISO);
+  const activeProgram = baseProgram ?? oneOffForToday ?? null;
 
   const [state, setState] = useState<{
     sessions: ScheduledSession[];
@@ -114,7 +140,16 @@ export function useScheduledSessions(
     let cancelled = false;
 
     async function load() {
-      if (!activeProgram || !user) {
+      if (!activeProgram && !oneOffForToday) {
+        setState({
+          sessions: [],
+          todaySessions: [],
+          isLoading: false,
+          error: null,
+        });
+        return;
+      }
+      if (!user) {
         setState({
           sessions: [],
           todaySessions: [],
@@ -138,20 +173,28 @@ export function useScheduledSessions(
           (r: { performed_at: string }) => toISODate(new Date(r.performed_at)),
         );
 
-        const completedDayIndices = deriveCompletedDayIndices(
-          activeProgram,
-          completedDates,
-        );
+        const program = baseProgram ?? oneOffForToday;
+        const completedDayIndices = program
+          ? deriveCompletedDayIndices(program, completedDates)
+          : [];
+        const next = program
+          ? getNextProgramWorkout(program, completedDayIndices, [])
+          : null;
 
-        const next = getNextProgramWorkout(activeProgram, completedDayIndices, []);
+        // Derive the one-off's next workout independently.
+        const oneOffNext = oneOffForToday
+          ? getNextProgramWorkout(oneOffForToday, [], [])
+          : null;
 
         const result = buildScheduledSessionsResult({
-          program: activeProgram,
+          program: baseProgram ?? null,
           next,
           completedDates,
           rangeStart,
           rangeEnd,
           today,
+          oneOffProgram: oneOffForToday,
+          oneOffNext,
         });
 
         if (!cancelled) {
@@ -178,7 +221,7 @@ export function useScheduledSessions(
     return () => {
       cancelled = true;
     };
-  }, [activeProgram, user, rangeStart, rangeEnd, today]);
+  }, [activeProgram, baseProgram, oneOffForToday, user, rangeStart, rangeEnd, today]);
 
   return {
     sessions: state.sessions,

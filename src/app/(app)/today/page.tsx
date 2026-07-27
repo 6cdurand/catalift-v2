@@ -54,10 +54,12 @@ export default function TodayPage() {
     rangeEnd: rangeStart,
   });
 
-  const { activeProgram, next, completedDayIndices } = useActiveClientProgram(
-    user?.id,
-    sessionLoading,
-  );
+  const { activeProgram, next, completedDayIndices, oneOffProgram, oneOffNext } =
+    useActiveClientProgram(user?.id, sessionLoading);
+
+  // Dated one-off takes precedence on Today when available.
+  const effectiveProgram = oneOffProgram ?? activeProgram;
+  const effectiveNext = oneOffProgram ? oneOffNext : next;
 
   const { stats } = useTodayStats(user?.id, sessionLoading);
 
@@ -142,8 +144,8 @@ export default function TodayPage() {
         {/* Athlete mode surface */}
         {!isTrainerMode && !isLoading && !error && (
           <TodaySurface
-            activeProgram={activeProgram}
-            next={next}
+            activeProgram={effectiveProgram}
+            next={effectiveNext}
             completedDayIndices={completedDayIndices}
             stats={stats}
             todaySessions={todaySessions}
@@ -155,25 +157,25 @@ export default function TodayPage() {
           />
         )}
 
-        {activeProgram && !isTrainerMode && (
+        {effectiveProgram && !isTrainerMode && (
           <>
             <PreviewDayDialog
               open={previewIndex !== null}
               day={
                 previewIndex !== null
-                  ? activeProgram.weeklyPlan[previewIndex] ?? null
+                  ? effectiveProgram.weeklyPlan[previewIndex] ?? null
                   : null
               }
               dayIndex={previewIndex ?? 0}
-              programName={activeProgram.name}
+              programName={effectiveProgram.name}
               onOpenChange={(open) => !open && setPreviewIndex(null)}
             />
 
             <SwapDayDialog
               open={swapOpen}
-              program={activeProgram}
+              program={effectiveProgram}
               completedDayIndices={completedDayIndices}
-              nextDayIndex={next?.dayIndex ?? 0}
+              nextDayIndex={effectiveNext?.dayIndex ?? 0}
               onOpenChange={setSwapOpen}
               onStart={handleStart}
               onPreview={openPreview}

@@ -21,6 +21,11 @@ export {
 } from "./lib/get-next-workout";
 
 export { deriveCompletedDayIndices } from "./lib/derive-completed-days";
+export {
+  isDatedOneOff,
+  selectActivePrograms,
+  type SelectedActivePrograms,
+} from "./lib/select-active-programs";
 
 // w3 — client program page (the recipient half of the parity law).
 export { ClientProgramPage } from "./client/ClientProgramPage";
