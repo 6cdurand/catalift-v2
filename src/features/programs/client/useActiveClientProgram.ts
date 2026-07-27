@@ -17,6 +17,7 @@ import { getBrowserClient } from "@/lib/supabase";
 import {
   fetchClientProgramsForClient,
   getNextProgramWorkout,
+  selectActivePrograms,
   useProgramsStore,
   type ClientProgram,
   type NextWorkoutResult,
@@ -34,6 +35,10 @@ export interface UseActiveClientProgramResult {
   activeProgram: ClientProgram | null;
   next: NextWorkoutResult | null;
   completedDayIndices: number[];
+  /** Dated one-off matching today (when a multi-week base also exists). */
+  oneOffProgram: ClientProgram | null;
+  /** Next-workout result for the one-off (when applicable). */
+  oneOffNext: NextWorkoutResult | null;
   isLoading: boolean;
   error: Error | null;
 }
@@ -48,9 +53,10 @@ export function useActiveClientProgram(
   const [state, setState] = useState<{
     next: NextWorkoutResult | null;
     completedDayIndices: number[];
+    oneOffNext: NextWorkoutResult | null;
     isLoading: boolean;
     error: Error | null;
-  }>({ next: null, completedDayIndices: [], isLoading: true, error: null });
+  }>({ next: null, completedDayIndices: [], oneOffNext: null, isLoading: true, error: null });
 
   useEffect(() => {
     if (sessionLoading) return;
@@ -60,7 +66,7 @@ export function useActiveClientProgram(
     async function load() {
       if (!userId) {
         if (!cancelled) {
-          setState({ next: null, completedDayIndices: [], isLoading: false, error: null });
+          setState({ next: null, completedDayIndices: [], oneOffNext: null, isLoading: false, error: null });
         }
         return;
       }
@@ -69,9 +75,10 @@ export function useActiveClientProgram(
         if (cancelled) return;
         hydrateClientPrograms(programs);
 
-        const active = programs.find((p) => p.status === "active") ?? null;
-        if (!active) {
-          setState({ next: null, completedDayIndices: [], isLoading: false, error: null });
+        const todayISO = toISODate(new Date());
+        const { baseProgram, oneOffForToday } = selectActivePrograms(programs, todayISO);
+        if (!baseProgram && !oneOffForToday) {
+          setState({ next: null, completedDayIndices: [], oneOffNext: null, isLoading: false, error: null });
           return;
         }
 
@@ -87,17 +94,29 @@ export function useActiveClientProgram(
         const completedDates = (data ?? []).map(
           (r: { performed_at: string }) => toISODate(new Date(r.performed_at)),
         );
-        const completedDayIndices = deriveCompletedDayIndices(active, completedDates);
-        const next = getNextProgramWorkout(active, completedDayIndices, []);
+
+        const active = baseProgram ?? oneOffForToday;
+        const completedDayIndices = active
+          ? deriveCompletedDayIndices(active, completedDates)
+          : [];
+        const next = active
+          ? getNextProgramWorkout(active, completedDayIndices, [])
+          : null;
+
+        // Derive the one-off's next workout independently (for Today overlay).
+        const oneOffNext = oneOffForToday
+          ? getNextProgramWorkout(oneOffForToday, [], [])
+          : null;
 
         if (!cancelled) {
-          setState({ next, completedDayIndices, isLoading: false, error: null });
+          setState({ next, completedDayIndices, oneOffNext, isLoading: false, error: null });
         }
       } catch (err) {
         if (!cancelled) {
           setState({
             next: null,
             completedDayIndices: [],
+            oneOffNext: null,
             isLoading: false,
             error: err as Error,
           });
@@ -111,12 +130,16 @@ export function useActiveClientProgram(
     };
   }, [userId, sessionLoading, hydrateClientPrograms]);
 
-  const activeProgram = clientPrograms.find((p) => p.status === "active") ?? null;
+  const todayISO = toISODate(new Date());
+  const { baseProgram, oneOffForToday } = selectActivePrograms(clientPrograms, todayISO);
+  const activeProgram = baseProgram ?? oneOffForToday ?? null;
 
   return {
     activeProgram,
     next: state.next,
     completedDayIndices: state.completedDayIndices,
+    oneOffProgram: oneOffForToday,
+    oneOffNext: state.oneOffNext,
     isLoading: state.isLoading,
     error: state.error,
   };

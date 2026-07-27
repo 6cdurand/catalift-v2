@@ -165,6 +165,8 @@ describe("TodayPage (F2 rich surface)", () => {
       activeProgram: program,
       next: nextFor(program),
       completedDayIndices: [],
+      oneOffProgram: null,
+      oneOffNext: null,
       isLoading: false,
       error: null,
     });
@@ -229,6 +231,8 @@ describe("TodayPage trainer mode", () => {
       activeProgram: null,
       next: null,
       completedDayIndices: [],
+      oneOffProgram: null,
+      oneOffNext: null,
       isLoading: false,
       error: null,
     });
@@ -278,6 +282,8 @@ describe("TodayPage trainer mode", () => {
       activeProgram: program,
       next: nextFor(program),
       completedDayIndices: [],
+      oneOffProgram: null,
+      oneOffNext: null,
       isLoading: false,
       error: null,
     });
