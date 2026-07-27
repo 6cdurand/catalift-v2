@@ -11,15 +11,13 @@ test.describe('Superset + Circuit execution (w2b)', () => {
 
   test('create a Superset from two exercises via the actions menu → log a set in each → both persist', async ({ page }) => {
     // Wait for workout to auto-start
-    await expect(page.locator('text=Add Block')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('add-chip-bar')).toBeVisible();
 
-    // Add two standalone strength exercises (+ → Strength tile)
-    await page.getByRole('button', { name: 'Add Block' }).click();
+    // Add two standalone strength exercises (Strength chip → exercise picker opens immediately)
     await page.getByRole('button', { name: 'Strength' }).click();
     await page.getByPlaceholder('Search exercises').fill('Bench');
     await page.locator('button:has-text("Barbell Bench Press")').first().click();
 
-    await page.getByRole('button', { name: 'Add Block' }).click();
     await page.getByRole('button', { name: 'Strength' }).click();
     await page.getByPlaceholder('Search exercises').fill('Squat');
     await page.locator('button:has-text("Barbell Back Squat")').first().click();
@@ -72,10 +70,9 @@ test.describe('Superset + Circuit execution (w2b)', () => {
   test('add a Circuit (2 stations, 3 rounds) → Add Round → a set appears in each station → finish saves', async ({
     page,
   }) => {
-    await expect(page.locator('text=Add Block')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('add-chip-bar')).toBeVisible();
 
-    // Open the block-type picker and choose Circuit (+ → Circuit tile)
-    await page.getByRole('button', { name: 'Add Block' }).click();
+    // Click the Circuit chip → opens the circuit picker modal directly
     await page.getByRole('button', { name: 'Circuit' }).click();
 
     // Modal should appear
@@ -132,15 +129,13 @@ test.describe('Superset + Circuit execution (w2b)', () => {
   test('saved workout reads back with superset + circuit blocks intact (fromRow)', async ({
     page,
   }) => {
-    await expect(page.locator('text=Add Block')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('add-chip-bar')).toBeVisible();
 
     // Add two exercises then pair them into a superset via the actions menu
-    await page.getByRole('button', { name: 'Add Block' }).click();
     await page.getByRole('button', { name: 'Strength' }).click();
     await page.getByPlaceholder('Search exercises').fill('Bench');
     await page.locator('button:has-text("Barbell Bench Press")').first().click();
 
-    await page.getByRole('button', { name: 'Add Block' }).click();
     await page.getByRole('button', { name: 'Strength' }).click();
     await page.getByPlaceholder('Search exercises').fill('Row');
     await page.locator('button:has-text("Barbell Bent-Over Row")').first().click();

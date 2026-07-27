@@ -10,11 +10,10 @@ test.describe('Workout summary screen', () => {
   });
 
   test('finish workout → summary appears → Done redirects to /workouts', async ({ page }) => {
-    // Wait for workout to auto-start
-    await page.waitForTimeout(2000);
+    // Wait for page to be ready (add-chip-bar renders when workout is active)
+    await expect(page.getByTestId('add-chip-bar')).toBeVisible();
 
-    // Add an exercise (+ → Strength tile)
-    await page.getByRole('button', { name: 'Add Block' }).click();
+    // Add a strength exercise (Strength chip → exercise picker opens immediately)
     await page.getByRole('button', { name: 'Strength' }).click();
     await page.fill('input[placeholder*="Search exercises"]', 'Bench');
     await page.locator('button:has-text("Barbell Bench Press")').first().click();
@@ -49,7 +48,8 @@ test.describe('Workout summary screen', () => {
   });
 
   test('summary shows AI Coach fallback for empty workout', async ({ page }) => {
-    await page.waitForTimeout(2000);
+    // Wait for page to be ready (add-chip-bar renders when workout is active)
+    await expect(page.getByTestId('add-chip-bar')).toBeVisible();
 
     // Finish without adding any exercises
     await page.click('text=Finish');

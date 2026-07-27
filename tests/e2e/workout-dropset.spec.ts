@@ -15,10 +15,9 @@ test.describe('Drop-set execution (faithful v1 port)', () => {
   test('add a drop set to an exercise → it renders, is editable, and persists across reload', async ({
     page,
   }) => {
-    await expect(page.locator('text=Add Block')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId('add-chip-bar')).toBeVisible();
 
-    // Add a strength exercise (+ → Strength tile)
-    await page.getByRole('button', { name: 'Add Block' }).click();
+    // Add a strength exercise (Strength chip → exercise picker opens immediately)
     await page.getByRole('button', { name: 'Strength' }).click();
     await page.getByPlaceholder('Search exercises').fill('Bench');
     await page.locator('button:has-text("Barbell Bench Press")').first().click();
