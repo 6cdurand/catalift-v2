@@ -2,9 +2,18 @@
 
 import { useMemo } from "react";
 import { PageHeader } from "@/components/layouts/MainLayout";
+import { useSession } from "@/features/auth";
 import { useScheduledSessions, CalendarGrid } from "@/features/calendar";
+import { useActiveClientProgram } from "@/features/programs";
 
 export default function CalendarPage() {
+  const { user, loading: sessionLoading } = useSession();
+
+  // Hydrate the programs store on mount — same hook /today uses.
+  // useScheduledSessions reads activeProgram from the store; without this,
+  // a direct load of /calendar (hard refresh / 2nd device) renders an empty grid.
+  useActiveClientProgram(user?.id, sessionLoading);
+
   // Range = current month ± 1 month for smooth nav (no refetch per month switch).
   const rangeStart = useMemo(() => {
     const d = new Date();

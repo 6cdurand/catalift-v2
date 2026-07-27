@@ -220,7 +220,7 @@ export function TrainerTodaySurface({
       <Button
         variant="outline"
         className="w-full h-12 border-gray-200 hover:bg-gray-50 justify-start gap-3"
-        onClick={() => router.push("/builder")}
+        onClick={() => router.push("/workout/builder")}
       >
         <Dumbbell className="w-5 h-5 text-rose-500" />
         <span className="font-semibold text-gray-700">

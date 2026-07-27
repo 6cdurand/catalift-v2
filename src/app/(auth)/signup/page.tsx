@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 import {
   ChevronRight,
   ChevronLeft,
@@ -51,8 +52,10 @@ type Gender = "male" | "female" | "other";
  * on `public.users` yet, so the wizard RENDERS them (visual parity) but only
  * full_name / role / date_of_birth are persisted. See `// TODO(auth-schema-followon)`.
  */
-export default function SignupPage() {
+function SignupPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next") ?? "/today";
 
   const [step, setStep] = useState<Step>("credentials");
   const [isLoading, setIsLoading] = useState(false);
@@ -119,7 +122,7 @@ export default function SignupPage() {
         // `mode` is a convenience mirror only. Authorization gating reads
         // `public.users.role` (G-20), never this metadata value.
         data: { mode: role, full_name: displayName || username },
-        emailRedirectTo: `${window.location.origin}/callback`,
+        emailRedirectTo: `${window.location.origin}/callback?next=${encodeURIComponent(next)}`,
       },
     });
 
@@ -148,7 +151,7 @@ export default function SignupPage() {
         // Already logged + retried in upsertProfile; non-blocking for nav.
       }
       toast.success("Account created successfully!");
-      router.push("/today");
+      router.push(next);
       router.refresh();
       return;
     }
@@ -521,5 +524,21 @@ export default function SignupPage() {
         </form>
       </CardContent>
     </AuthShell>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <AuthShell active="register">
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 text-sky-500 animate-spin" />
+          </div>
+        </AuthShell>
+      }
+    >
+      <SignupPageContent />
+    </Suspense>
   );
 }

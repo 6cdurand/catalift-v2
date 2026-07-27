@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -80,19 +80,47 @@ function InvitePageContent() {
     };
   }, [token]);
 
+  const acceptAttempted = useRef(false);
+
+  // Auto-accept when a user returns authenticated (e.g. after signup redirect).
+  useEffect(() => {
+    if (status === "valid" && user && token && !acceptAttempted.current) {
+      acceptAttempted.current = true;
+      let cancelled = false;
+      acceptInvite(token, user.id)
+        .then(() => {
+          if (!cancelled) {
+            setStatus("accepted");
+            setTimeout(() => router.push("/today"), 2000);
+          }
+        })
+        .catch((e) => {
+          console.error("[Invite] Auto-accept failed:", e);
+          acceptAttempted.current = false;
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [status, user, token, router]);
+
   const handleAcceptInvite = async () => {
     if (!token) return;
     if (user) {
+      if (acceptAttempted.current) return;
+      acceptAttempted.current = true;
       try {
         await acceptInvite(token, user.id);
         setStatus("accepted");
         setTimeout(() => router.push("/today"), 2000);
       } catch (e) {
         console.error("[Invite] Accept failed:", e);
+        acceptAttempted.current = false;
         setStatus("invalid");
       }
     } else {
-      router.push("/login");
+      const redirect = encodeURIComponent(`/invite?token=${token}`);
+      router.push(`/signup?next=${redirect}`);
     }
   };
 
@@ -202,7 +230,12 @@ function InvitePageContent() {
                   <p className="text-xs text-gray-400 text-center">
                     Already have an account?{" "}
                     <button
-                      onClick={() => router.push("/login")}
+                      onClick={() => {
+                        const redirect = token
+                          ? encodeURIComponent(`/invite?token=${token}`)
+                          : "";
+                        router.push(redirect ? `/login?next=${redirect}` : "/login");
+                      }}
                       className="text-sky-400 hover:underline"
                     >
                       Sign in

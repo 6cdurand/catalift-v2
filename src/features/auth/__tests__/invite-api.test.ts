@@ -41,6 +41,18 @@ describe("verifyInviteToken", () => {
   it("returns {status:'valid'} when RPC returns valid=true", async () => {
     (getBrowserClient as any).mockReturnValue(
       makeRpcClient({
+        data: [{ email: EMAIL, trainer_name: "Coach Bob", valid: true }],
+        error: null,
+      }),
+    );
+
+    const result = await verifyInviteToken(TOKEN);
+    expect(result).toEqual({ status: "valid", email: EMAIL });
+  });
+
+  it("returns {status:'valid'} when RPC returns a non-array valid object", async () => {
+    (getBrowserClient as any).mockReturnValue(
+      makeRpcClient({
         data: { email: EMAIL, trainer_name: "Coach Bob", valid: true },
         error: null,
       }),
@@ -53,9 +65,18 @@ describe("verifyInviteToken", () => {
   it("returns {status:'invalid'} when RPC returns valid=false", async () => {
     (getBrowserClient as any).mockReturnValue(
       makeRpcClient({
-        data: { email: EMAIL, trainer_name: "Coach Bob", valid: false },
+        data: [{ email: EMAIL, trainer_name: "Coach Bob", valid: false }],
         error: null,
       }),
+    );
+
+    const result = await verifyInviteToken(TOKEN);
+    expect(result).toEqual({ status: "invalid" });
+  });
+
+  it("returns {status:'invalid'} when RPC returns an empty array (bad/expired token)", async () => {
+    (getBrowserClient as any).mockReturnValue(
+      makeRpcClient({ data: [], error: null }),
     );
 
     const result = await verifyInviteToken(TOKEN);

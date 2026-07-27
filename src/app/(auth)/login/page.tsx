@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 import { getBrowserClient } from "@/lib/supabase";
 import { AuthShell } from "@/features/auth";
 import { Button } from "@/components/ui/button";
@@ -34,8 +35,10 @@ const NEUTRAL_REQUEST_MESSAGE =
  *   - "Continue with Google" (OAuth provider not configured this wave).
  *   - "Continue as Demo User" (relied on the v1 register/login store seam).
  */
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next") ?? "/today";
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -65,7 +68,7 @@ export default function LoginPage() {
     }
 
     toast.success("Welcome back!");
-    router.push("/today");
+    router.push(next);
     router.refresh();
   };
 
@@ -263,5 +266,21 @@ export default function LoginPage() {
         </div>
       )}
     </AuthShell>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <AuthShell active="login">
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 text-sky-500 animate-spin" />
+          </div>
+        </AuthShell>
+      }
+    >
+      <LoginPageContent />
+    </Suspense>
   );
 }
