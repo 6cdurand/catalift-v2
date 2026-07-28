@@ -48,7 +48,7 @@ import {
   shiftISODate,
   toISODate,
   DAYS_IN_WEEK,
-} from "@/features/trainer-ops/lib/week";
+} from "@/lib/week";
 import { TrainerTodaySurface } from "../TrainerTodaySurface";
 
 // Derived from the real device clock (the surface computes `today` the same

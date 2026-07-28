@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 
-import { TrainerDayStrip } from "../TrainerDayStrip";
+import { DayStrip } from "../DayStrip";
 
 const WEEK_DAYS = [
   "2026-07-27",
@@ -18,9 +18,9 @@ const onShiftWeek = vi.fn();
 const onStepDay = vi.fn();
 const onOpenCalendar = vi.fn();
 
-function renderStrip(overrides: Partial<React.ComponentProps<typeof TrainerDayStrip>> = {}) {
+function renderStrip(overrides: Partial<React.ComponentProps<typeof DayStrip>> = {}) {
   return render(
-    <TrainerDayStrip
+    <DayStrip
       weekDays={WEEK_DAYS}
       selectedDate="2026-07-28"
       today="2026-07-28"
@@ -43,7 +43,7 @@ afterEach(() => {
   cleanup();
 });
 
-describe("TrainerDayStrip", () => {
+describe("DayStrip", () => {
   it("renders 7 day pills, Mon → Sun", () => {
     renderStrip();
 
@@ -131,7 +131,7 @@ describe("TrainerDayStrip", () => {
 
   it("steps forward one day on a left swipe", () => {
     renderStrip();
-    const strip = screen.getByTestId("trainer-day-strip");
+    const strip = screen.getByTestId("day-strip");
 
     fireEvent.touchStart(strip, { touches: [{ clientX: 200 }] });
     fireEvent.touchEnd(strip, { changedTouches: [{ clientX: 100 }] });
@@ -141,7 +141,7 @@ describe("TrainerDayStrip", () => {
 
   it("steps back one day on a right swipe", () => {
     renderStrip();
-    const strip = screen.getByTestId("trainer-day-strip");
+    const strip = screen.getByTestId("day-strip");
 
     fireEvent.touchStart(strip, { touches: [{ clientX: 100 }] });
     fireEvent.touchEnd(strip, { changedTouches: [{ clientX: 220 }] });
@@ -151,11 +151,18 @@ describe("TrainerDayStrip", () => {
 
   it("ignores a touch that travels less than the swipe threshold", () => {
     renderStrip();
-    const strip = screen.getByTestId("trainer-day-strip");
+    const strip = screen.getByTestId("day-strip");
 
     fireEvent.touchStart(strip, { touches: [{ clientX: 100 }] });
     fireEvent.touchEnd(strip, { changedTouches: [{ clientX: 115 }] });
 
     expect(onStepDay).not.toHaveBeenCalled();
+  });
+
+  it("honours a caller-supplied testId (the trainer surface keeps its own)", () => {
+    renderStrip({ testId: "trainer-day-strip" });
+
+    expect(screen.getByTestId("trainer-day-strip")).toBeDefined();
+    expect(screen.queryByTestId("day-strip")).toBeNull();
   });
 });

@@ -1,8 +1,42 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import type { ClientProgram, NextWorkoutResult } from "@/features/programs";
+import type { ScheduledSession } from "@/features/calendar";
+import {
+  DAYS_IN_WEEK,
+  formatAccessibleDate,
+  formatWeekdayLong,
+  getWeekWindow,
+  shiftISODate,
+  toISODate,
+} from "@/lib/week";
+import { userScopedKey } from "@/utils/user-scoped-key";
+import { SELECTED_DATE_RESOURCE } from "../selected-date-storage";
 
 const mockPush = vi.fn();
+
+// The page computes its default selection from the real device clock, so derive
+// the expectations the same way instead of faking timers.
+const TODAY = toISODate(new Date());
+const WEEK = getWeekWindow(TODAY);
+const OTHER_DAY = WEEK.days.find((d) => d !== TODAY)!;
+const STORAGE_KEY = userScopedKey(SELECTED_DATE_RESOURCE, "user-1");
+
+function makeSession(
+  date: string,
+  overrides: Partial<ScheduledSession> = {},
+): ScheduledSession {
+  return {
+    date,
+    programId: "prog-1",
+    dayIndex: 1,
+    dayRef: "Pull",
+    label: "Pull",
+    kind: "program-day",
+    status: "upcoming",
+    ...overrides,
+  };
+}
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
@@ -14,13 +48,30 @@ vi.mock("@/features/auth", () => ({
 }));
 
 const mockUseScheduledSessions = vi.fn();
-vi.mock("@/features/calendar", () => ({
-  useScheduledSessions: () => mockUseScheduledSessions(),
-}));
+vi.mock("@/features/calendar", async () => {
+  // getSessionsForDate is a pure selector — use the real one (the surface must
+  // slice the week with the SAME selector the calendar uses).
+  const selectors = await import("@/features/calendar/lib/selectors");
+  return {
+    useScheduledSessions: (args: { rangeStart: string; rangeEnd: string }) =>
+      mockUseScheduledSessions(args),
+    getSessionsForDate: selectors.getSessionsForDate,
+  };
+});
 
 const mockUseActiveClientProgram = vi.fn();
 vi.mock("@/features/programs", () => ({
   useActiveClientProgram: () => mockUseActiveClientProgram(),
+}));
+
+const mockStartFromTemplate = vi.fn();
+vi.mock("@/features/workout-engine/stores/active-workout-store", () => ({
+  useActiveWorkoutStore: {
+    getState: () => ({
+      activeWorkout: null,
+      startFromTemplate: mockStartFromTemplate,
+    }),
+  },
 }));
 
 const mockUseTodayStats = vi.fn();
@@ -142,6 +193,7 @@ function nextFor(program: ClientProgram): NextWorkoutResult {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionStorage.clear();
 });
 
 afterEach(() => {
@@ -153,8 +205,8 @@ describe("TodayPage (F2 rich surface)", () => {
     const program = makeProgram();
 
     mockUseScheduledSessions.mockReturnValue({
-      todaySessions: [],
-      today: "2026-07-19",
+      sessions: [],
+      today: TODAY,
       isLoading: false,
       error: null,
     });
@@ -185,6 +237,8 @@ describe("TodayPage (F2 rich surface)", () => {
 
     // Week strip
     expect(screen.getByText("This week")).toBeDefined();
+    // Day strip
+    expect(screen.getByTestId("day-strip")).toBeDefined();
     // Up Next card
     expect(screen.getByText("Up Next")).toBeDefined();
     expect(screen.getByText("Start Push")).toBeDefined();
@@ -219,8 +273,8 @@ describe("TodayPage trainer mode", () => {
     }));
 
     mockUseScheduledSessions.mockReturnValue({
-      todaySessions: [],
-      today: "2026-07-19",
+      sessions: [],
+      today: TODAY,
       isLoading: false,
       error: null,
     });
@@ -270,8 +324,8 @@ describe("TodayPage trainer mode", () => {
     const program = makeProgram();
 
     mockUseScheduledSessions.mockReturnValue({
-      todaySessions: [],
-      today: "2026-07-19",
+      sessions: [],
+      today: TODAY,
       isLoading: false,
       error: null,
     });
@@ -302,5 +356,202 @@ describe("TodayPage trainer mode", () => {
 
     expect(screen.queryByTestId("trainer-surface")).toBeNull();
     expect(screen.getByText("Up Next")).toBeDefined();
+  });
+});
+
+// ─── Phase 1b: the athlete day selector ───────────────────────────────────
+
+/**
+ * Wire the standard athlete-mode mocks, with `sessions` for the visible week.
+ *
+ * The trainer-mode describes above call vi.doMock with a DIFFERENT user id, and
+ * those registrations persist, so re-assert athlete identity here — the
+ * sessionStorage key is user-scoped and would otherwise not match STORAGE_KEY.
+ */
+function primeAthleteMode(sessions: ScheduledSession[] = []) {
+  vi.resetModules();
+  vi.doMock("@/features/auth", () => ({
+    useSession: () => ({ user: { id: "user-1" }, loading: false }),
+    useUserRole: () => ({ role: "client", loading: false }),
+  }));
+  vi.doMock("@/hooks/use-auth-user", () => ({
+    useAuthUser: () => ({
+      user: { id: "user-1", email: "test@test.com", mode: "user" },
+      isAuthenticated: true,
+    }),
+  }));
+
+  const program = makeProgram();
+
+  mockUseScheduledSessions.mockReturnValue({
+    sessions,
+    today: TODAY,
+    isLoading: false,
+    error: null,
+  });
+
+  mockUseActiveClientProgram.mockReturnValue({
+    activeProgram: program,
+    next: nextFor(program),
+    completedDayIndices: [],
+    oneOffProgram: null,
+    oneOffNext: null,
+    isLoading: false,
+    error: null,
+  });
+
+  mockUseTodayStats.mockReturnValue({
+    stats: {
+      weekStreak: 0,
+      sessionsThisWeek: 0,
+      volumeThisWeek: 0,
+      setsThisWeek: 0,
+    },
+    isLoading: false,
+    error: null,
+  });
+
+  return program;
+}
+
+function dayPill(iso: string) {
+  return screen.getByRole("button", {
+    name: new RegExp(formatAccessibleDate(iso)),
+  });
+}
+
+describe("TodayPage — selected date", () => {
+  it("defaults to today and asks useScheduledSessions for Mon→Sun of that week", async () => {
+    primeAthleteMode();
+
+    const { default: TodayPage } = await import("../page");
+    render(<TodayPage />);
+
+    expect(mockUseScheduledSessions).toHaveBeenCalledWith({
+      rangeStart: WEEK.rangeStart,
+      rangeEnd: WEEK.rangeEnd,
+    });
+    expect(screen.getByTestId("page-header").textContent).toContain("Today");
+  });
+
+  it("restores the selection from sessionStorage (user-scoped key)", async () => {
+    sessionStorage.setItem(STORAGE_KEY, OTHER_DAY);
+    primeAthleteMode();
+
+    const { default: TodayPage } = await import("../page");
+    render(<TodayPage />);
+
+    expect(screen.getByTestId("page-header").textContent).toContain(
+      formatWeekdayLong(OTHER_DAY),
+    );
+    expect(dayPill(OTHER_DAY).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("honours a stored date from ANOTHER week and moves the range with it", async () => {
+    const nextWeekDay = shiftISODate(TODAY, DAYS_IN_WEEK);
+    sessionStorage.setItem(STORAGE_KEY, nextWeekDay);
+    primeAthleteMode();
+
+    const { default: TodayPage } = await import("../page");
+    render(<TodayPage />);
+
+    expect(mockUseScheduledSessions).toHaveBeenLastCalledWith({
+      rangeStart: shiftISODate(WEEK.rangeStart, DAYS_IN_WEEK),
+      rangeEnd: shiftISODate(WEEK.rangeEnd, DAYS_IN_WEEK),
+    });
+  });
+
+  it("ignores a corrupt stored value and falls back to today", async () => {
+    sessionStorage.setItem(STORAGE_KEY, "not-a-date");
+    primeAthleteMode();
+
+    const { default: TodayPage } = await import("../page");
+    render(<TodayPage />);
+
+    expect(screen.getByTestId("page-header").textContent).toContain("Today");
+  });
+
+  it("persists a tapped day to sessionStorage", async () => {
+    primeAthleteMode();
+
+    const { default: TodayPage } = await import("../page");
+    render(<TodayPage />);
+
+    fireEvent.click(dayPill(OTHER_DAY));
+
+    expect(sessionStorage.getItem(STORAGE_KEY)).toBe(OTHER_DAY);
+  });
+
+  it("moves the range a whole week with the next-week chevron", async () => {
+    primeAthleteMode();
+
+    const { default: TodayPage } = await import("../page");
+    render(<TodayPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Next week" }));
+
+    expect(mockUseScheduledSessions).toHaveBeenLastCalledWith({
+      rangeStart: shiftISODate(WEEK.rangeStart, DAYS_IN_WEEK),
+      rangeEnd: shiftISODate(WEEK.rangeEnd, DAYS_IN_WEEK),
+    });
+  });
+});
+
+describe("TodayPage — start on another day (confirm)", () => {
+  /** Select OTHER_DAY and tap Start on its session row. */
+  async function startOnOtherDay() {
+    primeAthleteMode([makeSession(OTHER_DAY, { dayIndex: 1, label: "Pull" })]);
+
+    const { default: TodayPage } = await import("../page");
+    render(<TodayPage />);
+
+    fireEvent.click(dayPill(OTHER_DAY));
+
+    const card = screen.getByTestId("today-session-card");
+    fireEvent.click(within(card).getByRole("button", { name: "Start Pull" }));
+  }
+
+  it("opens the dialog and starts NOTHING", async () => {
+    await startOnOtherDay();
+
+    expect(screen.getByText("Start Workout Today?")).toBeDefined();
+    expect(
+      screen.getByText(/This session is scheduled for .*\. Start the workout now\?/),
+    ).toBeDefined();
+    expect(mockStartFromTemplate).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalledWith("/workout/active");
+  });
+
+  it("does NOT promise to re-date the session (v2 has no calendar_events)", async () => {
+    await startOnOtherDay();
+
+    expect(screen.queryByText(/date will be updated/i)).toBeNull();
+  });
+
+  it("Start Now starts THAT day's dayIndex and resets the selection to today", async () => {
+    await startOnOtherDay();
+
+    fireEvent.click(screen.getByRole("button", { name: /Start Now/ }));
+
+    // dayIndex 1 === "Pull" — the explicit index, not the "Up Next" day 0.
+    expect(mockStartFromTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        name: "Pull - Hypertrophy Block 1",
+      }),
+    );
+    expect(mockPush).toHaveBeenCalledWith("/workout/active");
+    expect(screen.getByTestId("page-header").textContent).toContain("Today");
+    expect(sessionStorage.getItem(STORAGE_KEY)).toBe(TODAY);
+  });
+
+  it("Cancel starts nothing and closes the dialog", async () => {
+    await startOnOtherDay();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(mockStartFromTemplate).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalledWith("/workout/active");
+    expect(screen.queryByText("Start Workout Today?")).toBeNull();
   });
 });

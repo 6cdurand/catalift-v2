@@ -28,7 +28,7 @@ import type { TrainerDaySession } from "@/features/trainer-ops/hooks/useTrainerW
 import {
   formatMonthDay,
   formatWeekdayLong,
-} from "@/features/trainer-ops/lib/week";
+} from "@/lib/week";
 
 const STATUS_BADGE: Record<
   ScheduledSessionStatus,

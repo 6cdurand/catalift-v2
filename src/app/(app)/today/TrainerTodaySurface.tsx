@@ -28,10 +28,10 @@ import {
   startOfWeekISO,
   toISODate,
   DAYS_IN_WEEK,
-} from "@/features/trainer-ops/lib/week";
+} from "@/lib/week";
 import type { RosterClientDetail } from "@/types/roster";
+import { DayStrip } from "./DayStrip";
 import { TrainerDaySchedule } from "./TrainerDaySchedule";
-import { TrainerDayStrip } from "./TrainerDayStrip";
 
 export interface TrainerTodaySurfaceProps {
   /** The logged-in trainer's id — scopes every schedule read. */
@@ -179,7 +179,8 @@ export function TrainerTodaySurface({
         </Button>
       </div>
 
-      <TrainerDayStrip
+      <DayStrip
+        testId="trainer-day-strip"
         weekDays={weekDays}
         selectedDate={selectedDate}
         today={today}
