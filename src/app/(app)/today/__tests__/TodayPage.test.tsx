@@ -48,8 +48,6 @@ vi.mock("@/hooks/use-view-mode", () => ({
 vi.mock("@/app/(app)/today/useTrainerTodayData", () => ({
   useTrainerTodayData: () => ({
     clients: [],
-    stats: { active: 0, pending: 0, total: 0 },
-    recentCompletions: [],
     isLoading: false,
     error: null,
   }),

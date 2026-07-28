@@ -1,32 +1,22 @@
 "use client";
 
-// Trainer Today data hook — fetches the trainer's roster and recent client
-// workout completions using existing v2 data seams (fetchClients + workouts
-// table with are_connected RLS). No schema changes, no new tables.
+// Trainer Today roster hook — the page-level loading/error gate for trainer
+// mode, plus the roster the surface needs for its "no clients yet" empty state.
+//
+// The `recentCompletions` feed and the roster `stats` were REMOVED with the
+// Today redesign (Christo 2026-07-28: roster detail belongs on /clients, Today
+// is schedule only). The `workouts` query that fed them moved into
+// useTrainerWeekSchedule, where it is scoped to the visible week instead of
+// "the 10 most recent rows".
 
 import { useEffect, useState } from "react";
 import { fetchClients } from "@/lib/roster";
-import { getBrowserClient } from "@/lib/supabase";
-import type { RosterClientDetail, RosterStats } from "@/types/roster";
-
-export interface ClientCompletion {
-  id: string;
-  clientName: string;
-  workoutName: string;
-  performedAt: string;
-  clientId: string;
-}
+import type { RosterClientDetail } from "@/types/roster";
 
 export interface TrainerTodayData {
   clients: RosterClientDetail[];
-  stats: RosterStats;
-  recentCompletions: ClientCompletion[];
   isLoading: boolean;
   error: Error | null;
-}
-
-interface ClientNameMap {
-  [clientId: string]: { name: string };
 }
 
 export function useTrainerTodayData(
@@ -34,14 +24,6 @@ export function useTrainerTodayData(
   enabled: boolean,
 ): TrainerTodayData {
   const [clients, setClients] = useState<RosterClientDetail[]>([]);
-  const [stats, setStats] = useState<RosterStats>({
-    active: 0,
-    pending: 0,
-    total: 0,
-  });
-  const [recentCompletions, setRecentCompletions] = useState<
-    ClientCompletion[]
-  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -53,55 +35,12 @@ export function useTrainerTodayData(
       try {
         const result = await fetchClients();
         if (cancelled) return;
-
         setClients(result.clients);
-        setStats(result.stats);
-
-        const nameMap: ClientNameMap = {};
-        for (const c of result.clients) {
-          nameMap[c.id] = { name: c.name };
-        }
-
-        const clientIds = result.clients.map((c) => c.id);
-        let completions: ClientCompletion[] = [];
-
-        if (clientIds.length > 0) {
-          const supabase = getBrowserClient();
-          const { data, error: workoutsError } = await supabase
-            .from("workouts")
-            .select("id, name, performed_at, user_id")
-            .in("user_id", clientIds)
-            .order("performed_at", { ascending: false })
-            .limit(10);
-
-          if (!workoutsError && data) {
-            completions = (data as Array<{
-              id: string;
-              name: string | null;
-              performed_at: string;
-              user_id: string;
-            }>).map((row) => ({
-              id: row.id,
-              clientName: nameMap[row.user_id]?.name ?? "Unknown",
-              workoutName: row.name ?? "Workout",
-              performedAt: row.performed_at,
-              clientId: row.user_id,
-            }));
-          }
-        }
-
-        if (!cancelled) {
-          setRecentCompletions(completions);
-          setError(null);
-        }
+        setError(null);
       } catch (err) {
-        if (!cancelled) {
-          setError(err as Error);
-        }
+        if (!cancelled) setError(err as Error);
       } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+        if (!cancelled) setIsLoading(false);
       }
     }
 
@@ -112,5 +51,5 @@ export function useTrainerTodayData(
     };
   }, [trainerId, enabled]);
 
-  return { clients, stats, recentCompletions, isLoading, error };
+  return { clients, isLoading, error };
 }

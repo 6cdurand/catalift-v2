@@ -1,39 +1,141 @@
 "use client";
 
-// Trainer Today surface — the trainer-mode view for /today.
-// Ports v1's trainer branch: Quick Actions grid (rose accent), roster summary,
-// and recent client completions. Uses existing v2 data seams only — no schema.
+// Trainer Today surface — a daily SCHEDULE view, nothing else.
+//
+// Christo 2026-07-28: "Active clients and details like that should only show in
+// the Clients page, not the Today page." The roster stats grid, the top-5 client
+// list and the Recent Client Completions section were DELETED from this surface;
+// they live on /clients. What remains is Quick Actions → day strip → the
+// selected day's client sessions → the workout-builder link.
+//
+// Composition only. The schedule data comes from useTrainerWeekSchedule, which
+// reuses the shared pure selectors, so the parity law still holds: this file
+// contains NO day-index / next-day arithmetic (grep-guard enforced).
 
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Calendar, Dumbbell, CheckCircle2, ChevronRight } from "lucide-react";
+import { Calendar, ChevronRight, Dumbbell, Users } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { RosterClientDetail, RosterStats } from "@/types/roster";
-import type { ClientCompletion } from "./useTrainerTodayData";
-
-function formatRelativeDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
+import { markSessionComplete } from "@/features/payments";
+import {
+  useTrainerWeekSchedule,
+  type TrainerDaySession,
+} from "@/features/trainer-ops/hooks/useTrainerWeekSchedule";
+import {
+  getWeekDays,
+  shiftISODate,
+  startOfWeekISO,
+  toISODate,
+  DAYS_IN_WEEK,
+} from "@/features/trainer-ops/lib/week";
+import type { RosterClientDetail } from "@/types/roster";
+import { TrainerDaySchedule } from "./TrainerDaySchedule";
+import { TrainerDayStrip } from "./TrainerDayStrip";
 
 export interface TrainerTodaySurfaceProps {
+  /** The logged-in trainer's id — scopes every schedule read. */
+  trainerId: string | undefined;
+  /** Roster from useTrainerTodayData (drives the "no clients yet" empty state). */
   clients: RosterClientDetail[];
-  stats: RosterStats;
-  recentCompletions: ClientCompletion[];
   isLoading: boolean;
   error: Error | null;
 }
 
+function withKey(keys: Set<string>, key: string): Set<string> {
+  const next = new Set(keys);
+  next.add(key);
+  return next;
+}
+
+function withoutKey(keys: Set<string>, key: string): Set<string> {
+  const next = new Set(keys);
+  next.delete(key);
+  return next;
+}
+
 export function TrainerTodaySurface({
+  trainerId,
   clients,
-  stats,
-  recentCompletions,
   isLoading,
   error,
 }: TrainerTodaySurfaceProps) {
   const router = useRouter();
+
+  // The ONE device-local today for this surface, computed once per mount.
+  const [today] = useState(() => toISODate(new Date()));
+  // Default selection is always today, on every mount.
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [weekStart, setWeekStart] = useState(() => startOfWeekISO(today));
+
+  // Rows flipped locally while their write is in flight / already succeeded.
+  const [optimisticKeys, setOptimisticKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [markingKeys, setMarkingKeys] = useState<Set<string>>(() => new Set());
+
+  const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart]);
+  const rangeStart = weekDays[0];
+  const rangeEnd = weekDays[DAYS_IN_WEEK - 1];
+
+  const schedule = useTrainerWeekSchedule({
+    trainerId,
+    enabled: Boolean(trainerId),
+    rangeStart,
+    rangeEnd,
+    selectedDate,
+  });
+
+  const daySessions = useMemo(
+    () =>
+      schedule.daySessions.map((row) =>
+        optimisticKeys.has(row.completedKey)
+          ? { ...row, isMarkedComplete: true }
+          : row,
+      ),
+    [schedule.daySessions, optimisticKeys],
+  );
+
+  const handleShiftWeek = (deltaWeeks: number) => {
+    const delta = deltaWeeks * DAYS_IN_WEEK;
+    setWeekStart(shiftISODate(weekStart, delta));
+    setSelectedDate(shiftISODate(selectedDate, delta));
+  };
+
+  // Swipe: move the selection one day, rolling the window at the week edges.
+  const handleStepDay = (deltaDays: number) => {
+    const target = shiftISODate(selectedDate, deltaDays);
+    setSelectedDate(target);
+    const targetWeekStart = startOfWeekISO(target);
+    if (targetWeekStart !== weekStart) setWeekStart(targetWeekStart);
+  };
+
+  // Ledger write ONLY — this never starts, creates or mutates a workout.
+  const handleMarkComplete = async (row: TrainerDaySession) => {
+    if (row.isMarkedComplete || markingKeys.has(row.completedKey)) return;
+
+    setOptimisticKeys((keys) => withKey(keys, row.completedKey));
+    setMarkingKeys((keys) => withKey(keys, row.completedKey));
+
+    try {
+      await markSessionComplete({
+        clientId: row.clientId,
+        source: "pt_completion",
+        sessionDate: selectedDate,
+        // Synthetic dedupe key — rides client_sessions_dedupe_event so a
+        // double-tap (or a second device) collapses to ONE ledger row.
+        calendarEventId: row.completedKey,
+      });
+      toast.success(`Session marked complete for ${row.clientName}`);
+      schedule.refresh();
+    } catch {
+      // Never leave the row in a lying state.
+      setOptimisticKeys((keys) => withoutKey(keys, row.completedKey));
+      toast.error("Could not mark the session complete. Please try again.");
+    } finally {
+      setMarkingKeys((keys) => withoutKey(keys, row.completedKey));
+    }
+  };
 
   if (isLoading) {
     return (
@@ -57,7 +159,8 @@ export function TrainerTodaySurface({
 
   return (
     <div className="space-y-5">
-      {/* Quick Actions — trainer mode only, rose accent */}
+      {/* Quick Actions — trainer mode only, rose accent.
+          v1's second slot is Book; booking is Phase 2, so Calendar holds it. */}
       <div className="grid grid-cols-2 gap-3">
         <Button
           className="h-auto py-5 bg-linear-to-br from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 flex flex-col items-center gap-2 rounded-2xl shadow-lg shadow-rose-500/20"
@@ -76,145 +179,30 @@ export function TrainerTodaySurface({
         </Button>
       </div>
 
-      {/* Roster Summary */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-500 flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            Your Clients
-          </h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-rose-500 text-xs h-7"
-            onClick={() => router.push("/clients")}
-          >
-            See All
-          </Button>
-        </div>
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <Card className="bg-white border-gray-200 shadow-sm">
-            <CardContent className="p-3 text-center">
-              <p className="text-2xl font-bold text-rose-500">{stats.active}</p>
-              <p className="text-xs text-gray-500">Active</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-white border-gray-200 shadow-sm">
-            <CardContent className="p-3 text-center">
-              <p className="text-2xl font-bold text-amber-500">
-                {stats.pending}
-              </p>
-              <p className="text-xs text-gray-500">Pending</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-white border-gray-200 shadow-sm">
-            <CardContent className="p-3 text-center">
-              <p className="text-2xl font-bold text-sky-500">{stats.total}</p>
-              <p className="text-xs text-gray-500">Total</p>
-            </CardContent>
-          </Card>
-        </div>
+      <TrainerDayStrip
+        weekDays={weekDays}
+        selectedDate={selectedDate}
+        today={today}
+        datesWithSessions={schedule.datesWithSessions}
+        sessionCountsByDate={schedule.sessionCountsByDate}
+        onSelectDate={setSelectedDate}
+        onShiftWeek={handleShiftWeek}
+        onStepDay={handleStepDay}
+        onOpenCalendar={() => router.push("/calendar")}
+      />
 
-        {/* Client list — top 5 */}
-        {clients.length > 0 ? (
-          <div className="space-y-2">
-            {clients.slice(0, 5).map((client) => (
-              <Card
-                key={client.id}
-                className="bg-white border-gray-200 shadow-sm cursor-pointer hover:border-rose-200 transition-colors"
-                onClick={() => router.push("/clients")}
-              >
-                <CardContent className="p-3 flex items-center gap-3">
-                  <Avatar className="w-9 h-9">
-                    <AvatarImage src={client.avatarUrl ?? undefined} />
-                    <AvatarFallback className="bg-gray-100 text-gray-600 text-sm">
-                      {client.name?.[0]?.toUpperCase() || "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {client.name}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {client.sessions} sessions
-                      {client.lastSeen &&
-                        ` • Last: ${formatRelativeDate(client.lastSeen)}`}
-                    </p>
-                  </div>
-                  <Badge
-                    className={
-                      client.status === "active"
-                        ? "bg-sky-500/10 text-sky-500"
-                        : "bg-amber-500/10 text-amber-500"
-                    }
-                  >
-                    {client.status === "active" ? "Active" : "Pending"}
-                  </Badge>
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <Card className="bg-gray-50 border-gray-200">
-            <CardContent className="py-6 text-center">
-              <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-              <p className="text-sm text-gray-500">
-                No clients yet. Add your first client to get started.
-              </p>
-              <Button
-                size="sm"
-                className="mt-3 bg-rose-500 hover:bg-rose-600"
-                onClick={() => router.push("/clients")}
-              >
-                <Users className="w-4 h-4 mr-1" />
-                Add Client
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </section>
-
-      {/* Recent Client Completions */}
-      {recentCompletions.length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-green-500" />
-            Recent Client Completions
-          </h2>
-          <div className="space-y-2">
-            {recentCompletions.map((workout) => (
-              <Card
-                key={workout.id}
-                className="bg-white border-gray-200 shadow-sm"
-              >
-                <CardContent className="p-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-8 h-8">
-                      <AvatarFallback className="bg-rose-100 text-rose-600 text-xs">
-                        {workout.clientName?.[0]?.toUpperCase() || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="text-sm text-gray-900">
-                        {workout.clientName}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {workout.workoutName} •{" "}
-                        {formatRelativeDate(workout.performedAt)}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge className="bg-green-500/20 text-green-600 text-xs">
-                    <CheckCircle2 className="w-3 h-3 mr-1" />
-                    Done
-                  </Badge>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
-      )}
+      <TrainerDaySchedule
+        sessions={daySessions}
+        selectedDate={selectedDate}
+        today={today}
+        hasClients={clients.length > 0}
+        isLoading={schedule.isLoading}
+        error={schedule.error}
+        markingKeys={markingKeys}
+        onMarkComplete={handleMarkComplete}
+        onOpenClient={(clientId) => router.push(`/clients/${clientId}`)}
+        onAddClient={() => router.push("/clients")}
+      />
 
       {/* Quick Link — Workout Builder */}
       <Button

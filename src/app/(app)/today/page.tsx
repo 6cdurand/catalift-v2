@@ -173,9 +173,8 @@ export default function TodayPage() {
         {/* Trainer mode surface */}
         {isTrainerMode && !showLoading && !showError && (
           <TrainerTodaySurface
+            trainerId={user?.id}
             clients={trainerData.clients}
-            stats={trainerData.stats}
-            recentCompletions={trainerData.recentCompletions}
             isLoading={false}
             error={null}
           />
