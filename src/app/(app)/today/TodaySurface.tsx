@@ -4,14 +4,26 @@
 // client-program components (WeeklyProgressStrip + UpNextCard) so "Up Next" comes
 // ONLY from getNextProgramWorkout (parity law — BUG-001/010). Presentational:
 // all data + handlers arrive via props; this file contains NO next-day / rotation
-// / day-index math.
+// / day-index math, and NO calendar-date arithmetic (the week's dates arrive as
+// `weekDays`, computed by the shared @/lib/week helpers).
+//
+// Phase 1b (Christo 2026-07-29): the athlete gets the SAME day strip as the
+// trainer. When the selected day IS today the surface renders exactly as before.
+// When it is any other day (past OR future) it shows that day's session(s) with
+// a Start button, which the page puts behind the "Start Workout Today?" confirm.
+//
+// Session rows are rendered GENERICALLY from ScheduledSession — no `kind` is
+// hard-coded — so booking-kind rows slot in when the booking lane lands.
 
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, History, Dumbbell, PencilRuler } from "lucide-react";
+import { Plus, History, Dumbbell, PencilRuler, Play } from "lucide-react";
 import type { ClientProgram, NextWorkoutResult } from "@/features/programs";
-import type { ScheduledSession } from "@/features/calendar";
+import { getSessionsForDate, type ScheduledSession } from "@/features/calendar";
 import { UpNextCard } from "@/features/programs/client/components/UpNextCard";
 import { WeeklyProgressStrip } from "@/features/programs/client/components/WeeklyProgressStrip";
+import { formatMonthDay, formatWeekdayLong } from "@/lib/week";
+import { DayStrip } from "./DayStrip";
 import { TodayStatsRow } from "./TodayStatsRow";
 import type { TodayStats } from "./today-stats";
 
@@ -22,9 +34,28 @@ const STATUS_COLOR: Record<string, string> = {
   rest: "border-gray-200 bg-gray-50 text-gray-500",
 };
 
-function SessionCard({ session }: { session: ScheduledSession }) {
+/**
+ * A row is startable when it maps to a real program day that has not already
+ * been completed. Deliberately kind-agnostic: a future booking row with a
+ * dayIndex behaves the same. `dayIndex` is READ, never computed (parity law).
+ */
+function isStartable(session: ScheduledSession): boolean {
+  return session.dayIndex >= 0 && session.status !== "done";
+}
+
+function SessionCard({
+  session,
+  onStart,
+}: {
+  session: ScheduledSession;
+  /** Omitted on today's rows — today keeps its existing (button-less) layout. */
+  onStart?: (session: ScheduledSession) => void;
+}) {
   return (
-    <div className={`rounded-lg border p-4 ${STATUS_COLOR[session.status] ?? ""}`}>
+    <div
+      className={`rounded-lg border p-4 ${STATUS_COLOR[session.status] ?? ""}`}
+      data-testid="today-session-card"
+    >
       <div className="flex items-center justify-between">
         <div>
           <p className="font-medium">{session.label}</p>
@@ -35,6 +66,19 @@ function SessionCard({ session }: { session: ScheduledSession }) {
         </div>
         <span className="text-xs font-medium uppercase">{session.status}</span>
       </div>
+      {onStart && isStartable(session) && (
+        <div className="mt-3 flex justify-end">
+          <Button
+            size="sm"
+            className="h-8 bg-sky-500 hover:bg-sky-600 text-white"
+            aria-label={`Start ${session.label}`}
+            onClick={() => onStart(session)}
+          >
+            <Play className="w-3.5 h-3.5 mr-1.5" />
+            Start
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -84,7 +128,20 @@ export interface TodaySurfaceProps {
   next: NextWorkoutResult | null;
   completedDayIndices: number[];
   stats: TodayStats;
-  todaySessions: ScheduledSession[];
+  /** Every session in the VISIBLE WEEK (Mon→Sun), from useScheduledSessions. */
+  sessions: ScheduledSession[];
+  /** The 7 ISO dates of the visible week, Mon→Sun (from @/lib/week). */
+  weekDays: string[];
+  /** ISO YYYY-MM-DD currently selected. */
+  selectedDate: string;
+  /** ISO YYYY-MM-DD device-local today — the ONE authority for "is today". */
+  today: string;
+  onSelectDate: (iso: string) => void;
+  onShiftWeek: (deltaWeeks: number) => void;
+  onStepDay: (deltaDays: number) => void;
+  onOpenCalendar: () => void;
+  /** Start a specific session row (the page decides whether to confirm first). */
+  onStartSession: (session: ScheduledSession) => void;
   onStartWorkout: () => void;
   onBuildWorkout: () => void;
   onPreview: (dayIndex: number) => void;
@@ -97,16 +154,62 @@ export function TodaySurface({
   next,
   completedDayIndices,
   stats,
-  todaySessions,
+  sessions,
+  weekDays,
+  selectedDate,
+  today,
+  onSelectDate,
+  onShiftWeek,
+  onStepDay,
+  onOpenCalendar,
+  onStartSession,
   onStartWorkout,
   onBuildWorkout,
   onPreview,
   onSwap,
   onViewHistory,
 }: TodaySurfaceProps) {
+  const isToday = selectedDate === today;
+
+  // Dots + accessible counts for the strip. Derived with the shared calendar
+  // selector over the dates the caller supplied — no date math here.
+  const sessionCountsByDate = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const iso of weekDays) {
+      const count = getSessionsForDate(sessions, iso).length;
+      if (count > 0) counts[iso] = count;
+    }
+    return counts;
+  }, [sessions, weekDays]);
+
+  const datesWithSessions = useMemo(
+    () => new Set(Object.keys(sessionCountsByDate)),
+    [sessionCountsByDate],
+  );
+
+  const selectedSessions = useMemo(
+    () => getSessionsForDate(sessions, selectedDate),
+    [sessions, selectedDate],
+  );
+
   return (
     <div className="space-y-5">
-      {/* Week strip — reuse w3 WeeklyProgressStrip (program-derived state only). */}
+      {/* Day selector — the SAME strip the trainer surface renders. */}
+      <DayStrip
+        weekDays={weekDays}
+        selectedDate={selectedDate}
+        today={today}
+        datesWithSessions={datesWithSessions}
+        sessionCountsByDate={sessionCountsByDate}
+        onSelectDate={onSelectDate}
+        onShiftWeek={onShiftWeek}
+        onStepDay={onStepDay}
+        onOpenCalendar={onOpenCalendar}
+      />
+
+      {/* Program-week progress — reuse w3 WeeklyProgressStrip (program-derived
+          state only). Kept alongside the day strip: it answers "where am I in
+          the program", the strip answers "which calendar day am I looking at". */}
       {activeProgram && next && (
         <WeeklyProgressStrip
           program={activeProgram}
@@ -116,46 +219,91 @@ export function TodaySurface({
         />
       )}
 
-      {/* Up Next — reuse w3 UpNextCard, fed from getNextProgramWorkout. */}
-      {activeProgram && next && (
-        <UpNextCard
-          program={activeProgram}
-          next={next}
-          onStart={onStartWorkout}
-          onPreview={onPreview}
-          onSwap={onSwap}
+      {isToday ? (
+        <>
+          {/* Up Next — reuse w3 UpNextCard, fed from getNextProgramWorkout.
+              Today-only by definition. */}
+          {activeProgram && next && (
+            <UpNextCard
+              program={activeProgram}
+              next={next}
+              onStart={onStartWorkout}
+              onPreview={onPreview}
+              onSwap={onSwap}
+            />
+          )}
+
+          {/* Quick-start — same start flow the program page uses (/workout/active). */}
+          <QuickStart
+            onStartWorkout={onStartWorkout}
+            onBuildWorkout={onBuildWorkout}
+            onViewHistory={onViewHistory}
+          />
+
+          {/* Stats row — this week's sessions / streak / sets / volume. */}
+          <TodayStatsRow stats={stats} />
+
+          {/* Scheduled sessions — the original list, now ONE section (not the page).
+              Heading intentionally avoids the word "Today" so it doesn't collide with
+              the app-header "Today" heading in the shell e2e. */}
+          <SessionList
+            heading="Scheduled sessions"
+            sessions={selectedSessions}
+            emptyLabel="No training scheduled for today. Enjoy the recovery!"
+          />
+        </>
+      ) : (
+        /* Another day selected — that day's sessions, each startable behind the
+           page's confirm. Up Next (today-only) and the stats row (this-week
+           aggregate, not per-day) are intentionally hidden here, as is the
+           quick-start block: its "Start Workout" starts TODAY's next day and
+           would compete with the per-row Start on the day being browsed. */
+        <SessionList
+          heading={`Schedule — ${formatMonthDay(selectedDate)}`}
+          sessions={selectedSessions}
+          emptyLabel={`No training scheduled for ${formatWeekdayLong(
+            selectedDate,
+          )}. Enjoy the recovery!`}
+          onStartSession={onStartSession}
         />
       )}
-
-      {/* Quick-start — same start flow the program page uses (/workout/active). */}
-      <QuickStart onStartWorkout={onStartWorkout} onBuildWorkout={onBuildWorkout} onViewHistory={onViewHistory} />
-
-      {/* Stats row — this week's sessions / streak / sets / volume. */}
-      <TodayStatsRow stats={stats} />
-
-      {/* Scheduled sessions — the original list, now ONE section (not the page).
-          Heading intentionally avoids the word "Today" so it doesn't collide with
-          the app-header "Today" heading in the shell e2e. */}
-      <section>
-        <h2 className="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-2">
-          <Dumbbell className="w-4 h-4" />
-          Scheduled sessions
-        </h2>
-        {todaySessions.length > 0 ? (
-          <div className="space-y-3">
-            {todaySessions.map((session, i) => (
-              <SessionCard key={`${session.date}-${i}`} session={session} />
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center">
-            <p className="text-sm font-medium text-gray-600">Rest Day</p>
-            <p className="mt-1 text-xs text-gray-400">
-              No training scheduled for today. Enjoy the recovery!
-            </p>
-          </div>
-        )}
-      </section>
     </div>
+  );
+}
+
+function SessionList({
+  heading,
+  sessions,
+  emptyLabel,
+  onStartSession,
+}: {
+  heading: string;
+  sessions: ScheduledSession[];
+  emptyLabel: string;
+  onStartSession?: (session: ScheduledSession) => void;
+}) {
+  return (
+    <section>
+      <h2 className="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-2">
+        <Dumbbell className="w-4 h-4" />
+        {heading}
+      </h2>
+      {sessions.length > 0 ? (
+        <div className="space-y-3">
+          {sessions.map((session, i) => (
+            <SessionCard
+              key={`${session.date}-${i}`}
+              session={session}
+              onStart={onStartSession}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center">
+          <p className="text-sm font-medium text-gray-600">Rest Day</p>
+          <p className="mt-1 text-xs text-gray-400">{emptyLabel}</p>
+        </div>
+      )}
+    </section>
   );
 }

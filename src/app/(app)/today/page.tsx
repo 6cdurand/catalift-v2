@@ -8,33 +8,46 @@
 // Parity law (BUG-001/010): "Up Next" / next-day come ONLY from
 // getNextProgramWorkout via useActiveClientProgram. This file contains NO
 // day-index / rotation / weekday / next-index logic (see parity-guard test).
+// Calendar-date arithmetic for the visible week lives ONLY in @/lib/week.
+//
+// Day selector (Phase 1b, Christo 2026-07-29): ONE `selectedDate` owns the
+// athlete surface, exactly as the v1 today page (`src/app/today/page.tsx:65-79`).
+// The week window is derived from it and handed to useScheduledSessions as a
+// Mon→Sun range — that widened range is the whole data change.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Dumbbell, Users } from "lucide-react";
 import { PageHeader } from "@/components/layouts/MainLayout";
 import { useSession, useUserRole } from "@/features/auth";
-import { useScheduledSessions } from "@/features/calendar";
+import { useScheduledSessions, type ScheduledSession } from "@/features/calendar";
 import { useActiveClientProgram } from "@/features/programs";
 import { PreviewDayDialog } from "@/features/programs/client/dialogs/PreviewDayDialog";
 import { SwapDayDialog } from "@/features/programs/client/dialogs/SwapDayDialog";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { useViewModeStore } from "@/hooks/use-view-mode";
 import { convertProgramDayToWorkoutBlocks } from "@/lib/programStartUtils";
+import {
+  DAYS_IN_WEEK,
+  formatLongDate,
+  formatWeekdayLong,
+  getWeekWindow,
+  shiftISODate,
+  toISODate,
+} from "@/lib/week";
 import { useActiveWorkoutStore } from "@/features/workout-engine/stores/active-workout-store";
+import { userScopedKey } from "@/utils/user-scoped-key";
+import {
+  SELECTED_DATE_RESOURCE,
+  readSelectedDate,
+  subscribeToSelectedDate,
+  writeSelectedDate,
+} from "./selected-date-storage";
+import { StartOnTodayDialog } from "./StartOnTodayDialog";
 import { TodaySurface } from "./TodaySurface";
 import { TrainerTodaySurface } from "./TrainerTodaySurface";
 import { useTodayStats } from "./useTodayStats";
 import { useTrainerTodayData } from "./useTrainerTodayData";
-
-function formatTodayLabel(today: string): string {
-  const d = new Date(today + "T00:00:00");
-  return d.toLocaleDateString("default", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-}
 
 export default function TodayPage() {
   const router = useRouter();
@@ -46,14 +59,49 @@ export default function TodayPage() {
   const isTrainerRole = role === "trainer";
   const isTrainerMode = authUser?.mode === "trainer";
 
-  const rangeStart = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }, []);
+  // ONE selected day for the athlete surface (v1 :65-79).
+  //
+  // Composed from three sources, in order: what the user picked this mount →
+  // what sessionStorage remembers → device-local today. The stored value is
+  // read through useSyncExternalStore, not copied into state by an effect, so
+  // there is no cascading render and no SSR/hydration mismatch
+  // (getServerSnapshot returns null, and the key only exists once auth resolves).
+  // A stored date OUTSIDE the current week is honoured as-is (v1 behaviour) —
+  // the visible week follows the selection, never the reverse.
+  //
+  // `deviceToday` seeds the default only; `today` from useScheduledSessions
+  // stays the ONE authority for "is this today" everywhere below.
+  const [deviceToday] = useState(() => toISODate(new Date()));
+  const [pickedDate, setPickedDate] = useState<string | null>(null);
 
-  const { todaySessions, today, isLoading, error } = useScheduledSessions({
-    rangeStart,
-    rangeEnd: rangeStart,
+  // Per-user key (AGENTS.md #4 — never a bare cache key). Resource name is v1's
+  // key, so this reads `catalift-today-selected-date-<userId>`.
+  const storageKey = user?.id
+    ? userScopedKey(SELECTED_DATE_RESOURCE, user.id)
+    : null;
+
+  const storedDate = useSyncExternalStore(
+    subscribeToSelectedDate,
+    () => (storageKey ? readSelectedDate(storageKey) : null),
+    () => null,
+  );
+
+  const selectedDate = pickedDate ?? storedDate ?? deviceToday;
+
+  // sessionStorage (not localStorage): the selection survives navigating away
+  // and back within the tab, and is forgotten with the browser session (v1 :77-79).
+  useEffect(() => {
+    if (!storageKey || pickedDate === null) return;
+    writeSelectedDate(storageKey, pickedDate);
+  }, [storageKey, pickedDate]);
+
+  // Mon→Sun window around the selection (v1 :292-294) — the range we now ask
+  // useScheduledSessions for instead of a single day.
+  const week = useMemo(() => getWeekWindow(selectedDate), [selectedDate]);
+
+  const { sessions, today, isLoading, error } = useScheduledSessions({
+    rangeStart: week.rangeStart,
+    rangeEnd: week.rangeEnd,
   });
 
   const { activeProgram, next, completedDayIndices, oneOffProgram, oneOffNext } =
@@ -69,6 +117,8 @@ export default function TodayPage() {
 
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
+  // The session waiting behind the "Start Workout Today?" confirm (v1 :1842-1845).
+  const [pendingStart, setPendingStart] = useState<ScheduledSession | null>(null);
 
   // Seed the active-workout store from the prescribed program day, then navigate.
   // Resolves the day from the SAME source the parity law uses (effectiveNext from
@@ -118,6 +168,36 @@ export default function TodayPage() {
     router.push("/workout/builder");
   };
 
+  // Start from a session row. On today this starts immediately (unchanged
+  // behaviour); on any other day it opens the confirm first (v1 :1838-1849).
+  const handleStartSession = (session: ScheduledSession) => {
+    if (session.date === today) {
+      handleStart(session.dayIndex);
+      return;
+    }
+    setPendingStart(session);
+  };
+
+  // Confirmed: start that day's session now and snap the strip back to today
+  // (v1 :2235). No write, no re-dating — see StartOnTodayDialog for why.
+  const handleConfirmStart = () => {
+    const session = pendingStart;
+    setPendingStart(null);
+    if (!session) return;
+    setPickedDate(today);
+    handleStart(session.dayIndex);
+  };
+
+  // Week chevrons and swipe move the SELECTION; the visible week is derived
+  // from it, so the window follows (v1 :292 derives the week from selectedDate).
+  const handleShiftWeek = (deltaWeeks: number) => {
+    setPickedDate(shiftISODate(selectedDate, deltaWeeks * DAYS_IN_WEEK));
+  };
+
+  const handleStepDay = (deltaDays: number) => {
+    setPickedDate(shiftISODate(selectedDate, deltaDays));
+  };
+
   const openPreview = (dayIndex: number) => {
     setSwapOpen(false);
     setPreviewIndex(dayIndex);
@@ -126,9 +206,15 @@ export default function TodayPage() {
   const showLoading = isTrainerMode ? trainerData.isLoading : isLoading;
   const showError = isTrainerMode ? trainerData.error : error;
 
+  // Header follows the selection (v1 :439-440).
+  const isToday = selectedDate === today;
+
   return (
     <div>
-      <PageHeader title="Today" subtitle={formatTodayLabel(today)} />
+      <PageHeader
+        title={isToday ? "Today" : formatWeekdayLong(selectedDate)}
+        subtitle={formatLongDate(selectedDate)}
+      />
       <div className="px-5 py-4">
         {/* Mode Toggle — only shown for actual trainers (local view toggle, not a DB role mutation) */}
         {isTrainerRole && !roleLoading && (
@@ -187,7 +273,15 @@ export default function TodayPage() {
             next={effectiveNext}
             completedDayIndices={completedDayIndices}
             stats={stats}
-            todaySessions={todaySessions}
+            sessions={sessions}
+            weekDays={week.days}
+            selectedDate={selectedDate}
+            today={today}
+            onSelectDate={setPickedDate}
+            onShiftWeek={handleShiftWeek}
+            onStepDay={handleStepDay}
+            onOpenCalendar={() => router.push("/calendar")}
+            onStartSession={handleStartSession}
             onStartWorkout={handleStart}
             onBuildWorkout={handleBuildWorkout}
             onPreview={openPreview}
@@ -220,6 +314,16 @@ export default function TodayPage() {
               onPreview={openPreview}
             />
           </>
+        )}
+
+        {!isTrainerMode && (
+          <StartOnTodayDialog
+            open={pendingStart !== null}
+            sessionDate={pendingStart?.date ?? null}
+            onOpenChange={(open) => !open && setPendingStart(null)}
+            onCancel={() => setPendingStart(null)}
+            onConfirm={handleConfirmStart}
+          />
         )}
       </div>
     </div>

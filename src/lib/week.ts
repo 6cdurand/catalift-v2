@@ -1,4 +1,10 @@
-// Pure week-window helpers for the trainer Today day-selector.
+// Pure week-window helpers for the Today day-selector strip.
+//
+// SHARED (moved here from features/trainer-ops/lib/week.ts in the athlete-strip
+// lane): these are domain-free calendar-date helpers and BOTH the trainer Today
+// surface and the athlete Today surface consume them, so they cannot live in a
+// feature folder without an athlete surface importing features/trainer-ops/*
+// (forbidden by the import-boundary rule).
 //
 // PARITY LAW SCOPE: these helpers do CALENDAR-DATE arithmetic only — which
 // dates are in the visible week, and how to label them. They NEVER decide which
@@ -84,6 +90,16 @@ export function formatMonthDay(iso: string): string {
 /** "Tuesday" — used in the empty state copy. */
 export function formatWeekdayLong(iso: string): string {
   return format(parseISODate(iso), "EEEE");
+}
+
+/** "Tuesday, Jul 28" — the start-on-another-day confirm dialog copy (v1 :2209). */
+export function formatWeekdayMonthDay(iso: string): string {
+  return format(parseISODate(iso), "EEEE, MMM d");
+}
+
+/** "July 28, 2026" — the Today page-header subtitle (v1 :440). */
+export function formatLongDate(iso: string): string {
+  return format(parseISODate(iso), "MMMM d, yyyy");
 }
 
 /** "Tuesday 28 July" — the accessible name prefix for a day-strip pill. */

@@ -8,7 +8,7 @@ import { join, relative } from "node:path";
 // The trainer week schedule and the day-selector must NEVER compute which
 // program day a client trains — that comes ONLY from getNextProgramWorkout +
 // buildScheduledSessions. Calendar-date arithmetic for the visible week is
-// allowed, and is confined to the pure `lib/week.ts` helper.
+// allowed, and is confined to the pure shared `src/lib/week.ts` helper.
 
 const FORBIDDEN_PATTERNS = [
   /nextDay/i,
@@ -20,8 +20,8 @@ const FORBIDDEN_PATTERNS = [
 
 const GUARDED_FILES = [
   "src/features/trainer-ops/hooks/useTrainerWeekSchedule.ts",
-  "src/features/trainer-ops/lib/week.ts",
-  "src/app/(app)/today/TrainerDayStrip.tsx",
+  "src/lib/week.ts",
+  "src/app/(app)/today/DayStrip.tsx",
   "src/app/(app)/today/TrainerDaySchedule.tsx",
   "src/app/(app)/today/TrainerTodaySurface.tsx",
 ];

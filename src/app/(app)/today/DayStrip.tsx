@@ -1,6 +1,7 @@
 "use client";
 
-// Trainer Today — horizontal day-selector strip ("NBA app" style).
+// Today — horizontal day-selector strip ("NBA app" style). MODE-AGNOSTIC:
+// the trainer surface and the athlete surface render the SAME strip.
 //
 // Ported from the v1 today page (`src/app/today/page.tsx:522-580`): Mon→Sun pills,
 // prev/next-week chevrons, jump-to-calendar button, EEE + day number, dot
@@ -8,7 +9,7 @@
 //
 // Presentational only — every date value is supplied by the caller. The dates
 // come from the pure `week.ts` helpers; this file contains NO date arithmetic
-// and NO day-index logic (parity law, see the trainer-ops grep-guard test).
+// and NO day-index logic (parity law, see the grep-guard tests).
 
 import { useRef } from "react";
 import { CalendarRange, ChevronLeft, ChevronRight } from "lucide-react";
@@ -17,12 +18,12 @@ import {
   formatAccessibleDate,
   formatDayNumber,
   formatWeekdayShort,
-} from "@/features/trainer-ops/lib/week";
+} from "@/lib/week";
 
 /** Minimum horizontal travel (px) before a touch counts as a swipe. */
 const SWIPE_THRESHOLD_PX = 40;
 
-export interface TrainerDayStripProps {
+export interface DayStripProps {
   /** The 7 ISO YYYY-MM-DD dates of the visible week, Mon→Sun. */
   weekDays: string[];
   /** ISO YYYY-MM-DD currently selected. */
@@ -39,6 +40,12 @@ export interface TrainerDayStripProps {
   /** Move the selection by one day (swipe); rolls the week at Mon/Sun. */
   onStepDay: (deltaDays: number) => void;
   onOpenCalendar: () => void;
+  /**
+   * data-testid of the strip container. Defaults to "day-strip"; the trainer
+   * surface keeps its merged "trainer-day-strip" id so its tests and DOM are
+   * byte-identical to main.
+   */
+  testId?: string;
 }
 
 function sessionCountLabel(count: number): string {
@@ -47,7 +54,7 @@ function sessionCountLabel(count: number): string {
   return `${count} sessions`;
 }
 
-export function TrainerDayStrip({
+export function DayStrip({
   weekDays,
   selectedDate,
   today,
@@ -57,7 +64,8 @@ export function TrainerDayStrip({
   onShiftWeek,
   onStepDay,
   onOpenCalendar,
-}: TrainerDayStripProps) {
+  testId = "day-strip",
+}: DayStripProps) {
   const swipeOriginX = useRef<number | null>(null);
 
   // Swipe = pointer/touch only. The pills stay real <button>s with aria-pressed
@@ -80,7 +88,7 @@ export function TrainerDayStrip({
   return (
     <div
       className="flex items-center gap-1 touch-pan-y select-none"
-      data-testid="trainer-day-strip"
+      data-testid={testId}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >

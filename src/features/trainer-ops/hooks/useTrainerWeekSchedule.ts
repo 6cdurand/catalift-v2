@@ -31,9 +31,9 @@ import {
   type ClientProgram,
 } from "@/features/programs";
 import { getBrowserClient } from "@/lib/supabase";
+import { toISODate } from "@/lib/week";
 
 import { fetchClients } from "../api/roster";
-import { toISODate } from "../lib/week";
 
 // ─── Public interface ──────────────────────────────────────────────────────
 
