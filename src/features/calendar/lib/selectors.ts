@@ -110,8 +110,14 @@ function buildFixedSessions(
 ): ScheduledSession[] {
   const sessions: ScheduledSession[] = [];
   const dates = enumerateDateRange(rangeStart, rangeEnd);
+  const startISO = (program.startDate ?? "").slice(0, 10);
 
   for (const date of dates) {
+    // BUG-023: a program cannot have a session before it started. Dates before
+    // start_date must not become sessions at all — otherwise deriveStatus (correctly)
+    // marks every past scheduled date "missed". Empty startDate = legacy row = no clamp.
+    if (startISO && date < startISO) continue;
+
     const weekday = isoToWeekday(date);
     const planIdx = program.weeklyPlan.findIndex(
       (d) => d.scheduledDay === weekday,

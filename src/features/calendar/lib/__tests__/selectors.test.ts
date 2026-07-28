@@ -177,6 +177,123 @@ describe("buildScheduledSessions — fixed mode", () => {
   });
 });
 
+describe("buildScheduledSessions — BUG-023 start_date clamp", () => {
+  const fixedProgram = makeProgram({
+    scheduleMode: "fixed",
+    weeklyPlan: [
+      day("d0", "Push", "tuesday"),
+      day("d1", "Legs", "thursday"),
+    ],
+    sessionPTMap: { 0: "pt", 1: "personal" },
+  });
+
+  it("BUG-023 — omits every scheduled date before start_date, including from status 'missed'", () => {
+    // Range spans ~2 weeks either side of startDate (2024-01-17, a Wednesday).
+    // Scheduled Tue/Thu dates before start: 01-02, 01-04, 01-09, 01-11, 01-16.
+    // Scheduled Tue/Thu dates on/after start: 01-18, 01-23, 01-25, 01-30.
+    const sessions = buildScheduledSessions(
+      makeInput({
+        program: { ...fixedProgram, startDate: "2024-01-17" },
+        rangeStart: "2024-01-01",
+        rangeEnd: "2024-01-31",
+        today: "2024-01-31", // every pre-start date is also in the past
+      }),
+    );
+
+    const preStartDates = [
+      "2024-01-02",
+      "2024-01-04",
+      "2024-01-09",
+      "2024-01-11",
+      "2024-01-16",
+    ];
+
+    for (const d of preStartDates) {
+      expect(sessions.find((s) => s.date === d)).toBeUndefined();
+    }
+    expect(sessions.some((s) => s.date < "2024-01-17")).toBe(false);
+    expect(sessions.some((s) => s.status === "missed" && s.date < "2024-01-17")).toBe(false);
+
+    expect(sessions.map((s) => s.date)).toEqual([
+      "2024-01-18",
+      "2024-01-23",
+      "2024-01-25",
+      "2024-01-30",
+    ]);
+  });
+
+  it("no over-clamp: a session ON start_date is still emitted", () => {
+    const sessions = buildScheduledSessions(
+      makeInput({
+        program: { ...fixedProgram, startDate: "2024-01-16" }, // Tuesday — a scheduled day
+        rangeStart: "2024-01-08",
+        rangeEnd: "2024-01-25",
+        today: "2024-01-25",
+      }),
+    );
+
+    expect(sessions.find((s) => s.date === "2024-01-16")).toBeDefined();
+    expect(sessions.find((s) => s.date === "2024-01-09")).toBeUndefined(); // prior Tuesday, pre-start
+    expect(sessions.find((s) => s.date === "2024-01-11")).toBeUndefined(); // prior Thursday, pre-start
+  });
+
+  it("normalises a timestamp-shaped startDate before comparing (no false pre-start clamp on the start day itself)", () => {
+    // Without `.slice(0, 10)`, "2024-01-16" < "2024-01-16T00:00:00Z" is TRUE
+    // (lexicographic: the bare date is a strict prefix of the longer string),
+    // which would wrongly skip the start day itself.
+    const sessions = buildScheduledSessions(
+      makeInput({
+        program: { ...fixedProgram, startDate: "2024-01-16T00:00:00Z" },
+        rangeStart: "2024-01-08",
+        rangeEnd: "2024-01-25",
+        today: "2024-01-25",
+      }),
+    );
+
+    expect(sessions.find((s) => s.date === "2024-01-16")).toBeDefined();
+  });
+
+  it("legacy fallback: startDate '' clamps nothing (identical to pre-fix behaviour)", () => {
+    const legacyProgram = makeProgram({
+      scheduleMode: "fixed",
+      weeklyPlan: [
+        day("d0", "Push", "monday"),
+        day("d1", "Pull", "wednesday"),
+        day("d2", "Legs", "friday"),
+      ],
+      startDate: "",
+    });
+
+    const sessions = buildScheduledSessions(makeInput({ program: legacyProgram }));
+
+    // Same shape as the "returns one program-day session per scheduled weekday
+    // in range" assertion for this fixture — the empty startDate must not
+    // change today's behaviour at all.
+    expect(sessions).toHaveLength(3);
+    expect(sessions.map((s) => s.date)).toEqual([
+      "2024-01-08",
+      "2024-01-10",
+      "2024-01-12",
+    ]);
+  });
+
+  it("genuine misses still work: a scheduled date after start_date with no workout row and date < today is still 'missed'", () => {
+    // startDate falls inside the visible range, one day before the missed date.
+    const sessions = buildScheduledSessions(
+      makeInput({
+        program: { ...fixedProgram, startDate: "2024-01-07" }, // Sunday, before Monday's slot
+        rangeStart: "2024-01-08",
+        rangeEnd: "2024-01-12",
+        today: "2024-01-10",
+      }),
+    );
+
+    const tuesday = sessions.find((s) => s.date === "2024-01-09")!;
+    expect(tuesday).toBeDefined();
+    expect(tuesday.status).toBe("missed");
+  });
+});
+
 describe("buildScheduledSessions — flexible mode", () => {
   const flexProgram = makeProgram({
     scheduleMode: "flexible",
