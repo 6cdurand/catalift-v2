@@ -46,6 +46,31 @@ export async function fetchClientPayments(
   return (data ?? []).map(rowToClientPayment);
 }
 
+/**
+ * Every `client_payments` row this trainer owns, newest first.
+ *
+ * Scoped by `trainer_id` in the query AND by the `client_payments_trainer_all`
+ * RLS policy (`trainer_id = auth.uid()`). Ordering matches
+ * `fetchClientPayments` (`created_at` desc) so a per-client slice of this
+ * result is byte-identical to what the client file renders.
+ */
+export async function fetchTrainerPayments(): Promise<ClientPayment[]> {
+  const supabase = getBrowserClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data, error } = await supabase
+    .from("client_payments")
+    .select("*")
+    .eq("trainer_id", user.id)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(rowToClientPayment);
+}
+
 export interface LogPaymentParams {
   clientId: string;
   amount: number;

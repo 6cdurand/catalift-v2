@@ -5,6 +5,7 @@ export type {
   ClientSession,
   ClientPayment,
   ClientBilling,
+  TrainerClientBilling,
   OutstandingResult,
 } from "./types";
 
@@ -13,6 +14,17 @@ export {
   getDisplayedPaidCount,
   getOutstanding,
 } from "./lib/derive";
+
+export {
+  buildTrainerPaymentRows,
+  buildTrainerEarnings,
+  dominantCurrency,
+  FALLBACK_CURRENCY,
+  type TrainerPaymentRow as TrainerPaymentRowData,
+  type TrainerPaymentTotals,
+  type TrainerPaymentsAggregate,
+  type TrainerEarnings,
+} from "./lib/aggregate";
 
 export {
   fetchClientSessions,
@@ -26,13 +38,17 @@ export {
 
 export {
   fetchClientPayments,
+  fetchTrainerPayments,
   logPayment,
   adjustPaidOffset,
   updateClientRate,
   type LogPaymentParams,
 } from "./api/payments";
 
-export { fetchClientBilling } from "./api/billing";
+export {
+  fetchClientBilling,
+  fetchTrainerClientBilling,
+} from "./api/billing";
 
 export {
   useClientPayments,
@@ -40,4 +56,11 @@ export {
   type UseClientPaymentsResult,
 } from "./hooks/useClientPayments";
 
+export {
+  useTrainerPayments,
+  type UseTrainerPaymentsResult,
+} from "./hooks/useTrainerPayments";
+
 export { ClientPaymentsSection } from "./components/ClientPaymentsSection";
+
+export { TrainerPaymentsSurface } from "./components/TrainerPaymentsSurface";

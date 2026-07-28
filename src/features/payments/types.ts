@@ -36,6 +36,18 @@ export interface ClientBilling {
   pricePerSession: number | null;
 }
 
+/**
+ * One `trainer_clients` row for the roster-wide payment tracker: the SAME
+ * billing primitives `ClientBilling` carries, plus the joined client identity
+ * so the tracker can render a row without a second roster query.
+ */
+export interface TrainerClientBilling extends ClientBilling {
+  clientId: string;
+  name: string;
+  avatarUrl: string | null;
+  status: string;
+}
+
 export interface OutstandingResult {
   outstandingSessions: number;
   outstandingAmount: number | null;
