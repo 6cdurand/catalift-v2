@@ -30,6 +30,12 @@ export interface ClientPayment {
   createdAt: string;
 }
 
+export interface ClientBilling {
+  historicalOffsetSessions: number;
+  totalPaidOffset: number;
+  pricePerSession: number | null;
+}
+
 export interface OutstandingResult {
   outstandingSessions: number;
   outstandingAmount: number | null;

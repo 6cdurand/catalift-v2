@@ -4,6 +4,7 @@ export type {
   PaymentStatus,
   ClientSession,
   ClientPayment,
+  ClientBilling,
   OutstandingResult,
 } from "./types";
 
@@ -28,3 +29,13 @@ export {
   updateClientRate,
   type LogPaymentParams,
 } from "./api/payments";
+
+export { fetchClientBilling } from "./api/billing";
+
+export {
+  useClientPayments,
+  DEFAULT_CURRENCY,
+  type UseClientPaymentsResult,
+} from "./hooks/useClientPayments";
+
+export { ClientPaymentsSection } from "./components/ClientPaymentsSection";

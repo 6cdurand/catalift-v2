@@ -20,6 +20,7 @@ import {
   fetchWorkoutHistory,
   type WorkoutHistoryItem,
 } from "@/features/workout-engine/api/fetch-history";
+import { ClientPaymentsSection } from "@/features/payments";
 import { fetchClients } from "@/lib/roster";
 import type { RosterClientDetail } from "@/types/roster";
 import { LoadingState } from "@/components/states";
@@ -348,12 +349,14 @@ export default function ClientDetailPage() {
           )}
         </div>
 
+        {/* Payments Section */}
+        <ClientPaymentsSection clientId={client.id} />
+
         {/* Deferred sections notice */}
         <Card className="bg-gray-50 border-gray-200">
           <CardContent className="p-4">
             <p className="text-xs text-gray-400 text-center">
-              Payments, booking, group management, and onboarding editing are
-              coming soon.
+              Booking, group management, and onboarding editing are coming soon.
             </p>
           </CardContent>
         </Card>
