@@ -11,6 +11,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/layouts/MainLayout";
 import { useSession } from "@/features/auth";
+import { convertProgramDayToWorkoutBlocks } from "@/lib/programStartUtils";
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import { useActiveWorkoutStore } from "@/features/workout-engine/stores/active-workout-store";
 import { useActiveClientProgram } from "./useActiveClientProgram";
 import { ProgramSummaryCard } from "./components/ProgramSummaryCard";
 import { UpNextCard } from "./components/UpNextCard";
@@ -32,9 +35,43 @@ export function ClientProgramPage() {
     activeProgram && user && activeProgram.trainerId === user.id
   );
 
-  // Start a program day → enter the active workout flow (Box 1).
-  // Seeding the session from the prescribed day is a follow-up (workout-engine).
-  const handleStart = () => {
+  // Start a program day → seed the active-workout store from the prescribed day,
+  // then navigate to /workout/active. Only seeds when no workout is in progress
+  // (resume-existing semantics — don't clobber an in-progress session).
+  const handleStart = (dayIndex?: number) => {
+    const program = activeProgram;
+    const store = useActiveWorkoutStore.getState();
+
+    if (store.activeWorkout) {
+      router.push("/workout/active");
+      return;
+    }
+
+    const resolvedDayIndex = dayIndex ?? next?.dayIndex;
+    if (!program || !user || resolvedDayIndex === undefined || resolvedDayIndex === null) {
+      router.push("/workout/active");
+      return;
+    }
+
+    const day = program.weeklyPlan[resolvedDayIndex];
+    if (!day) {
+      router.push("/workout/active");
+      return;
+    }
+
+    const blocks = convertProgramDayToWorkoutBlocks(day, {
+      programId: program.id,
+      dayIndex: resolvedDayIndex,
+      programName: program.name,
+      userId: user.id,
+    });
+
+    store.startFromTemplate({
+      userId: user.id,
+      name: `${day.label || "Workout"} - ${program.name}`,
+      blocks,
+    });
+
     router.push("/workout/active");
   };
 

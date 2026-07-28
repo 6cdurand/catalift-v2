@@ -20,6 +20,8 @@ import { PreviewDayDialog } from "@/features/programs/client/dialogs/PreviewDayD
 import { SwapDayDialog } from "@/features/programs/client/dialogs/SwapDayDialog";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { useViewModeStore } from "@/hooks/use-view-mode";
+import { convertProgramDayToWorkoutBlocks } from "@/lib/programStartUtils";
+import { useActiveWorkoutStore } from "@/features/workout-engine/stores/active-workout-store";
 import { TodaySurface } from "./TodaySurface";
 import { TrainerTodaySurface } from "./TrainerTodaySurface";
 import { useTodayStats } from "./useTodayStats";
@@ -68,8 +70,46 @@ export default function TodayPage() {
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
 
-  // Same start flow the UpNextCard / ClientProgramPage use (Box 1).
-  const handleStart = () => {
+  // Seed the active-workout store from the prescribed program day, then navigate.
+  // Resolves the day from the SAME source the parity law uses (effectiveNext from
+  // useActiveClientProgram), or an explicit dayIndex from SwapDayDialog/UpNextCard.
+  // Only seeds when no workout is already in progress (resume-existing semantics).
+  const handleStart = (dayIndex?: number) => {
+    const program = effectiveProgram;
+    const next = effectiveNext;
+    const store = useActiveWorkoutStore.getState();
+
+    // Don't clobber an in-progress workout — resume it instead.
+    if (store.activeWorkout) {
+      router.push("/workout/active");
+      return;
+    }
+
+    const resolvedDayIndex = dayIndex ?? next?.dayIndex;
+    if (!program || !user || resolvedDayIndex === undefined || resolvedDayIndex === null) {
+      router.push("/workout/active");
+      return;
+    }
+
+    const day = program.weeklyPlan[resolvedDayIndex];
+    if (!day) {
+      router.push("/workout/active");
+      return;
+    }
+
+    const blocks = convertProgramDayToWorkoutBlocks(day, {
+      programId: program.id,
+      dayIndex: resolvedDayIndex,
+      programName: program.name,
+      userId: user.id,
+    });
+
+    store.startFromTemplate({
+      userId: user.id,
+      name: `${day.label || "Workout"} - ${program.name}`,
+      blocks,
+    });
+
     router.push("/workout/active");
   };
 
