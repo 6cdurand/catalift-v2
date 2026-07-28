@@ -450,13 +450,130 @@ export type Database = {
           },
         ]
       }
+      client_payments: {
+        Row: {
+          amount: number
+          client_id: string
+          created_at: string
+          currency: string
+          description: string | null
+          id: string
+          method: string | null
+          paid_at: string | null
+          sessions_included: number
+          status: string
+          trainer_id: string
+        }
+        Insert: {
+          amount: number
+          client_id: string
+          created_at?: string
+          currency?: string
+          description?: string | null
+          id?: string
+          method?: string | null
+          paid_at?: string | null
+          sessions_included?: number
+          status?: string
+          trainer_id: string
+        }
+        Update: {
+          amount?: number
+          client_id?: string
+          created_at?: string
+          currency?: string
+          description?: string | null
+          id?: string
+          method?: string | null
+          paid_at?: string | null
+          sessions_included?: number
+          status?: string
+          trainer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_payments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_payments_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_sessions: {
+        Row: {
+          calendar_event_id: string | null
+          client_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          session_date: string
+          source: string
+          trainer_id: string
+          workout_id: string | null
+        }
+        Insert: {
+          calendar_event_id?: string | null
+          client_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          session_date?: string
+          source?: string
+          trainer_id: string
+          workout_id?: string | null
+        }
+        Update: {
+          calendar_event_id?: string | null
+          client_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          session_date?: string
+          source?: string
+          trainer_id?: string
+          workout_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_sessions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_sessions_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_sessions_workout_id_fkey"
+            columns: ["workout_id"]
+            isOneToOne: false
+            referencedRelation: "workouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trainer_clients: {
         Row: {
           client_id: string
           created_at: string
           historical_offset_sessions: number
           id: string
+          price_per_session: number | null
           status: string
+          total_paid_offset: number
           trainer_id: string
           updated_at: string
         }
@@ -465,7 +582,9 @@ export type Database = {
           created_at?: string
           historical_offset_sessions?: number
           id?: string
+          price_per_session?: number | null
           status?: string
+          total_paid_offset?: number
           trainer_id: string
           updated_at?: string
         }
@@ -474,7 +593,9 @@ export type Database = {
           created_at?: string
           historical_offset_sessions?: number
           id?: string
+          price_per_session?: number | null
           status?: string
+          total_paid_offset?: number
           trainer_id?: string
           updated_at?: string
         }
