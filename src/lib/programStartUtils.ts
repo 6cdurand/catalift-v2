@@ -8,6 +8,14 @@
  * - Cardio-specific fields
  */
 
+import type {
+  WorkoutBlock,
+  ExerciseEntry,
+  LoggedSet,
+  StraightBlockType,
+} from '@/features/workout-engine/types';
+import type { ProgramDay } from '@/features/programs/types';
+
 /**
  * Normalize a raw `sets` value (which may come from legacy program_data,
  * trainer-builder input, or AI generation) into a safe positive integer
@@ -173,4 +181,83 @@ export function convertProgramDayToTemplate(
   };
 
   return template;
+}
+
+/**
+ * Convert a program day's blocks into WorkoutBlock[] suitable for the active-workout
+ * store's startFromTemplate action. Reuses convertProgramDayToTemplate for set-building
+ * (normalizeSetCount + parseRepsPerSet), then maps the template's block structure to
+ * the v2 WorkoutBlock union (straight/superset/circuit/cardio).
+ *
+ * Block type mapping:
+ * - warmup  → straight { blockType: "warmup" }
+ * - work    → straight { blockType: "strength" } (multi-exercise = v2 superset-equivalent)
+ * - circuit → circuit { rounds, stations, restSeconds? }
+ * - cardio  → cardio { exerciseId, exerciseName, cardio }
+ * - cooldown → straight { blockType: "cooldown" }
+ */
+export function convertProgramDayToWorkoutBlocks(
+  day: ProgramDay,
+  opts: { programId: string; dayIndex: number; programName: string; userId: string }
+): WorkoutBlock[] {
+  const template = convertProgramDayToTemplate(day, opts);
+
+  // The flat exercises array is built by flatMapping blocks → exercises in order,
+  // so we can walk it sequentially to match each block exercise to its pre-built sets.
+  let flatIdx = 0;
+
+  return (template.blocks as any[]).map((block): WorkoutBlock => {
+    const blockExercises: ExerciseEntry[] = (block.exercises || []).map((ex: any): ExerciseEntry => {
+      const flatEx = template.exercises[flatIdx++];
+      const sets: LoggedSet[] = (flatEx?.sets ?? []).map((s: any): LoggedSet => ({
+        id: s.id,
+        setNumber: s.setNumber,
+        weight: s.weight ?? null,
+        reps: s.reps ?? null,
+        completed: s.completed ?? false,
+        ...(s.duration != null ? { durationSeconds: s.duration } : {}),
+      }));
+      return {
+        id: flatEx?.id ?? ex.id,
+        exerciseId: ex.exerciseId,
+        exerciseName: ex.exerciseName || 'Exercise',
+        sets,
+        ...(ex.notes ? { notes: ex.notes } : {}),
+      };
+    });
+
+    if (block.type === 'circuit') {
+      return {
+        id: block.id,
+        kind: 'circuit',
+        rounds: block.circuitRounds || 1,
+        stations: blockExercises,
+        ...(block.circuitRestBetween ? { restSeconds: block.circuitRestBetween } : {}),
+      };
+    }
+
+    if (block.type === 'cardio') {
+      const cardioEx = (block.exercises || [])[0] ?? {};
+      return {
+        id: block.id,
+        kind: 'cardio',
+        exerciseId: cardioEx.exerciseId || '',
+        exerciseName: cardioEx.exerciseName || 'Cardio',
+        cardio: {
+          durationSeconds: parseInt(cardioEx.targetTime) || 0,
+        },
+      };
+    }
+
+    const blockType: StraightBlockType =
+      block.type === 'warmup' ? 'warmup' :
+      block.type === 'cooldown' ? 'cooldown' : 'strength';
+
+    return {
+      id: block.id,
+      kind: 'straight',
+      blockType,
+      exercises: blockExercises,
+    };
+  });
 }

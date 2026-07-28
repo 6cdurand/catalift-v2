@@ -76,6 +76,7 @@ interface ActiveWorkoutState {
 
   // Lifecycle
   startWorkout: (params: { userId: string; name?: string }) => void;
+  startFromTemplate: (params: { userId: string; name?: string; blocks: WorkoutBlock[] }) => void;
   setPreviousBests: (map: PreviousBestMap) => void;
   // Header note field (v1 active header pause/note/rest controls). Local-only mutation;
   // `notes` already serializes to the workouts row via toRow — no schema change.
@@ -165,6 +166,23 @@ export const useActiveWorkoutStore = create<ActiveWorkoutState>()(
             name: name || null,
             performedAt: new Date().toISOString(),
             blocks: [],
+            totalVolume: 0,
+            notes: null,
+          },
+          workoutTimerSeconds: 0,
+          timerRunning: true,
+          activeBlockId: null,
+        });
+      },
+
+      startFromTemplate: ({ userId, name, blocks }) => {
+        set({
+          activeWorkout: {
+            id: newId(),
+            userId,
+            name: name || null,
+            performedAt: new Date().toISOString(),
+            blocks,
             totalVolume: 0,
             notes: null,
           },
