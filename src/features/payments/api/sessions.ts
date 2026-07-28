@@ -46,6 +46,49 @@ export async function fetchClientSessions(
   return (data ?? []).map(rowToClientSession);
 }
 
+export interface TrainerSessionRange {
+  /** ISO YYYY-MM-DD inclusive. */
+  rangeStart: string;
+  /** ISO YYYY-MM-DD inclusive. */
+  rangeEnd: string;
+}
+
+/**
+ * Every `client_sessions` row this trainer owns, optionally narrowed to a
+ * `session_date` window. Scoped by `trainer_id` in the query AND by the
+ * `client_sessions_trainer_all` RLS policy (`trainer_id = auth.uid()`).
+ *
+ * Callers: the trainer Today schedule (range = the visible week, to flag
+ * already-marked rows) and the trainer profile totals (no range = all-time).
+ */
+export async function fetchTrainerSessions(
+  range?: TrainerSessionRange,
+): Promise<ClientSession[]> {
+  const supabase = getBrowserClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  let query = supabase
+    .from("client_sessions")
+    .select("*")
+    .eq("trainer_id", user.id);
+
+  if (range) {
+    query = query
+      .gte("session_date", range.rangeStart)
+      .lte("session_date", range.rangeEnd);
+  }
+
+  const { data, error } = await query.order("session_date", {
+    ascending: false,
+  });
+  if (error) throw error;
+  return (data ?? []).map(rowToClientSession);
+}
+
 export interface MarkSessionCompleteParams {
   clientId: string;
   source: SessionSource;

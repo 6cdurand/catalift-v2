@@ -15,10 +15,12 @@ export {
 
 export {
   fetchClientSessions,
+  fetchTrainerSessions,
   markSessionComplete,
   addManualSession,
   adjustSessionOffset,
   type MarkSessionCompleteParams,
+  type TrainerSessionRange,
 } from "./api/sessions";
 
 export {
