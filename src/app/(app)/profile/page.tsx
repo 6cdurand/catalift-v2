@@ -39,10 +39,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import type { StrengthRating, Medal as MedalType, TrainerClient } from '@/types';
+import { useTrainerPayments } from '@/features/payments';
 import { ProfileCardV2 } from './_components/ProfileCardV2';
 import { WorkoutStatsCharts } from './_components/WorkoutStatsCharts';
 import { TrainerStatsCharts } from './_components/TrainerStatsCharts';
 import { useProfileData } from './_lib/use-profile-data';
+import { buildProfileTrainerStats } from './_lib/trainer-stats';
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -66,6 +68,10 @@ export default function ProfilePage() {
   const [showTrainerStatModal, setShowTrainerStatModal] = useState<'clients' | 'sessions' | 'revenue' | null>(null);
   const [showGymPicker, setShowGymPicker] = useState(false);
   const [gymSearchText, setGymSearchText] = useState('');
+
+  // Roster-wide payment roll-up — the SAME aggregate /payments renders, so the
+  // earnings card and the tracker can never disagree. Only fetched in trainer mode.
+  const { totals, earnings } = useTrainerPayments(isTrainerMode);
 
   // Deferred modules — no engine in v2 yet. Kept as typed empties so the
   // verbatim UI degrades gracefully behind its own guards / feature flags.
@@ -121,29 +127,16 @@ export default function ProfilePage() {
   const actualFollowers = isTrainerMode ? roster.map((r) => r.id) : [];
   const actualFollowing: string[] = [];
 
-  // Trainer stats — client count is real (roster); sessions/revenue are the
-  // deferred booking/payments module, so they render as zero/empty.
+  // Trainer stats — client count is real (roster) and every payment-derived
+  // figure comes from the F2 aggregate (`buildTrainerPaymentRows` totals +
+  // `buildTrainerEarnings`). Seams that still do not exist stay neutral rather
+  // than showing a fake non-zero (see `_lib/trainer-stats.ts`).
   const trainerStats = isTrainerMode
-    ? {
-        totalSessions: 0,
-        weekSessions: 0,
-        monthSessions: 0,
-        totalEarnings: 0,
-        weekEarnings: 0,
-        monthEarnings: 0,
+    ? buildProfileTrainerStats({
+        totals,
+        earnings,
         activeClients: roster.length,
-        avgSessionsPerWeek: '0',
-        avgPerSession: '0',
-        outstandingAmount: 0,
-        totalPaidSessions: 0,
-        totalUnpaidSessions: 0,
-        collectionRate: 100,
-        bestClient: { name: '—', revenue: 0, sessions: 0 },
-        busiestDay: null as { day: string; count: number } | null,
-        monthlyGrowth: 0,
-        totalClientsEver: roster.length,
-        revenuePerClient: 0,
-      }
+      })
     : null;
 
   // Roster → TrainerClient shape for the (empty-data) trainer charts.
@@ -321,8 +314,14 @@ export default function ProfilePage() {
         {isTrainerMode && trainerStats && (
           <Card className="bg-white border-gray-200 shadow-sm">
             <CardContent className="p-4">
-              {/* Earnings Row */}
-              <div className="grid grid-cols-3 gap-3 mb-3">
+              {/* Earnings Row — entry point to the all-clients payment tracker */}
+              <button
+                type="button"
+                data-testid="profile-earnings-row"
+                aria-label="Open payment tracker"
+                onClick={() => router.push('/payments')}
+                className="grid grid-cols-3 gap-3 mb-3 w-full rounded-lg hover:bg-gray-50 transition-colors"
+              >
                 <div className="text-center">
                   <p className="text-2xl font-bold text-gray-900">${Math.round(trainerStats.weekEarnings)}</p>
                   <p className="text-xs text-gray-500">This Week</p>
@@ -335,7 +334,7 @@ export default function ProfilePage() {
                   <p className="text-2xl font-bold text-rose-500">${Math.round(trainerStats.totalEarnings)}</p>
                   <p className="text-xs text-gray-500">Total Paid</p>
                 </div>
-              </div>
+              </button>
 
               {/* Stats Grid - Clickable for medal progress */}
               <div className="grid grid-cols-4 gap-2 pt-3 border-t border-gray-100">
