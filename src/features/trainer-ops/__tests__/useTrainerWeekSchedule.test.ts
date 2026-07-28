@@ -12,10 +12,20 @@ vi.mock("@/features/programs", async (importOriginal) => {
   return { ...actual, fetchClientProgramsForTrainer: vi.fn() };
 });
 vi.mock("@/features/payments", () => ({ fetchTrainerSessions: vi.fn() }));
+// Real implementation by default — only the programId-skip test overrides it,
+// because no real program can produce a session without a programId.
+vi.mock("@/features/calendar", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/calendar")>();
+  return {
+    ...actual,
+    buildScheduledSessionsResult: vi.fn(actual.buildScheduledSessionsResult),
+  };
+});
 
 import {
   buildScheduledSessionsResult,
   getSessionsForDate,
+  type ScheduledSession,
 } from "@/features/calendar";
 import { fetchTrainerSessions } from "@/features/payments";
 import {
@@ -206,6 +216,59 @@ describe("buildTrainerWeekSchedule", () => {
         `program:${row.session.programId}:${row.session.dayIndex}:${row.session.date}`,
       );
     }
+  });
+
+  // `ScheduledSession.programId` is optional in the type. No real program can
+  // produce a session without one (both builders in calendar/lib/selectors.ts
+  // set it), so the selector is stubbed here to force the branch. A literal
+  // "unknown" in the key would let two DIFFERENT programs for the same client
+  // collide on the same (dayIndex, date) and silently dedupe to one ledger row.
+  it("skips a session with no programId and never mints a program:unknown: key", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const orphan: ScheduledSession = {
+      date: TUESDAY,
+      // no programId — e.g. a future booking / group-event / ad-hoc session
+      dayIndex: 0,
+      dayRef: "Mystery Session",
+      label: "Mystery Session",
+      status: "upcoming",
+      kind: "booking",
+    };
+    const valid: ScheduledSession = {
+      date: TUESDAY,
+      programId: "prog-1",
+      dayIndex: 1,
+      dayRef: "Pull Day",
+      label: "Pull Day",
+      status: "upcoming",
+      kind: "program-day",
+    };
+
+    vi.mocked(buildScheduledSessionsResult).mockReturnValueOnce({
+      sessions: [orphan, valid],
+      todaySessions: [],
+    });
+
+    const { daySessions } = build();
+
+    // The orphan is dropped; the valid sibling still renders.
+    expect(daySessions).toHaveLength(1);
+    expect(daySessions[0].session.label).toBe("Pull Day");
+    expect(daySessions[0].completedKey).toBe(`program:prog-1:1:${TUESDAY}`);
+
+    // No key anywhere in the result carries the old "unknown" fallback.
+    for (const row of daySessions) {
+      expect(row.completedKey).not.toContain(":unknown:");
+    }
+
+    // And it is loud, not silent.
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("no programId"),
+      orphan,
+    );
+
+    errorSpy.mockRestore();
   });
 });
 

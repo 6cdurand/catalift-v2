@@ -199,7 +199,12 @@ export function buildTrainerWeekSchedule(
     for (const session of getSessionsForDate(sessions, selectedDate)) {
       // `ScheduledSession.programId` is optional in the type, but both builders
       // in calendar/lib/selectors.ts always set it (:127, :161), so this is
-      // unreachable for kind === "program-day" — pinned by a test below.
+      // unreachable for kind === "program-day". Both halves are pinned by
+      // __tests__/useTrainerWeekSchedule.test.ts:
+      //   "every program-day session carries a programId, so the dedupe key is
+      //    never 'unknown'"            — the happy path
+      //   "skips a session with no programId and never mints a
+      //    program:unknown: key"       — this branch, via a stubbed selector
       //
       // It must stay unreachable: a literal "unknown" in the dedupe key would
       // make two DIFFERENT programs for the same client collide on the same
