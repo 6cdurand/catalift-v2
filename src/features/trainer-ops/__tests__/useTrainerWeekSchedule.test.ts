@@ -13,8 +13,16 @@ vi.mock("@/features/programs", async (importOriginal) => {
 });
 vi.mock("@/features/payments", () => ({ fetchTrainerSessions: vi.fn() }));
 
+import {
+  buildScheduledSessionsResult,
+  getSessionsForDate,
+} from "@/features/calendar";
 import { fetchTrainerSessions } from "@/features/payments";
-import { fetchClientProgramsForTrainer } from "@/features/programs";
+import {
+  deriveCompletedDayIndices,
+  fetchClientProgramsForTrainer,
+  getNextProgramWorkout,
+} from "@/features/programs";
 import { getBrowserClient } from "@/lib/supabase";
 
 import { fetchClients } from "../api/roster";
@@ -186,15 +194,132 @@ describe("buildTrainerWeekSchedule", () => {
     });
     expect(daySessions[0].session.status).toBe("done");
   });
+
+  it("every program-day session carries a programId, so the dedupe key is never 'unknown'", () => {
+    const { daySessions } = build();
+
+    expect(daySessions).not.toHaveLength(0);
+    for (const row of daySessions) {
+      expect(row.session.programId).toBeTruthy();
+      expect(row.completedKey).not.toContain(":unknown:");
+      expect(row.completedKey).toBe(
+        `program:${row.session.programId}:${row.session.dayIndex}:${row.session.date}`,
+      );
+    }
+  });
+});
+
+// ─── Full-history parity with the athlete's own Today ──────────────────────
+//
+// COMMAND-CENTER REVIEW FIX: completedDates must be the client's FULL history.
+// A week-scoped `workouts` read makes the trainer's "next day" diverge from the
+// client's own Today, and resets a flexible program to day 0 on any week with
+// no completions. These tests compare the trainer builder against the exact
+// pipeline useScheduledSessions runs for the athlete (:172-198).
+
+describe("buildTrainerWeekSchedule — parity with the athlete path", () => {
+  const flexProgram = makeProgram({
+    scheduleMode: "flexible",
+    trainingDaysPerWeek: 3,
+    selectedDays: [],
+    weeklyPlan: [
+      { id: "d1", label: "Push Day", blocks: [] },
+      { id: "d2", label: "Pull Day", blocks: [] },
+      { id: "d3", label: "Leg Day", blocks: [] },
+    ],
+  });
+
+  /** Two completions LAST week — invisible to a range-filtered read. */
+  const PRIOR_WEEK = ["2026-07-20", "2026-07-21"];
+
+  /** Exactly what useScheduledSessions.ts:172-198 does for the athlete. */
+  function athleteSessionsFor(
+    program: ClientProgram,
+    completedDates: string[],
+    selected: string,
+  ) {
+    const next = getNextProgramWorkout(
+      program,
+      deriveCompletedDayIndices(program, completedDates),
+      [],
+    );
+    const { sessions } = buildScheduledSessionsResult({
+      program,
+      next,
+      completedDates,
+      rangeStart: RANGE_START,
+      rangeEnd: RANGE_END,
+      today: selected,
+      oneOffProgram: null,
+      oneOffNext: null,
+    });
+    return getSessionsForDate(sessions, selected);
+  }
+
+  it("flexible: trainer next-day matches the athlete when completions are in a PRIOR week", () => {
+    const athlete = athleteSessionsFor(flexProgram, PRIOR_WEEK, TUESDAY);
+    const { daySessions } = build({
+      programsByClient: { "client-1": [flexProgram] },
+      completedDatesByClient: { "client-1": PRIOR_WEEK },
+    });
+
+    expect(athlete).toHaveLength(1);
+    expect(daySessions).toHaveLength(1);
+    expect(daySessions[0].session.dayIndex).toBe(athlete[0].dayIndex);
+    expect(daySessions[0].session.label).toBe(athlete[0].label);
+    // Two days done last week → the client is on the third day, not day 0.
+    expect(daySessions[0].session.dayIndex).toBe(2);
+    expect(daySessions[0].session.label).toBe("Leg Day");
+  });
+
+  it("REGRESSION: a week-scoped workouts read would reset the client to day 0", () => {
+    const athlete = athleteSessionsFor(flexProgram, PRIOR_WEEK, TUESDAY);
+
+    // Simulates the pre-fix behaviour: prior-week completions filtered out.
+    const { daySessions } = build({
+      programsByClient: { "client-1": [flexProgram] },
+      completedDatesByClient: { "client-1": [] },
+    });
+
+    expect(daySessions[0].session.dayIndex).toBe(0);
+    expect(daySessions[0].session.dayIndex).not.toBe(athlete[0].dayIndex);
+  });
+
+  it("fixed: trainer sessions match the athlete's for the same prior-week history", () => {
+    const completed = ["2026-07-21"]; // a Tuesday last week → Push Day index 0
+    const athlete = athleteSessionsFor(makeProgram(), completed, TUESDAY);
+    const { daySessions } = build({
+      completedDatesByClient: { "client-1": completed },
+    });
+
+    expect(daySessions).toHaveLength(athlete.length);
+    expect(daySessions[0].session.dayIndex).toBe(athlete[0].dayIndex);
+    expect(daySessions[0].session.label).toBe(athlete[0].label);
+    expect(daySessions[0].session.status).toBe(athlete[0].status);
+  });
+
+  it("out-of-range history cannot invent sessions on the visible week", () => {
+    const withHistory = build({
+      completedDatesByClient: { "client-1": ["2026-01-05", "2026-03-17"] },
+    });
+    const withoutHistory = build();
+
+    expect(withHistory.sessionCountsByDate).toEqual(
+      withoutHistory.sessionCountsByDate,
+    );
+  });
 });
 
 // ─── The hook ──────────────────────────────────────────────────────────────
 
+// The workouts read must be UNFILTERED by date. `gte`/`lte` are still exposed
+// on the builder so a regression that re-adds a range is caught by assertion
+// rather than by a confusing "not a function" crash.
 function mockSupabaseWorkouts(rows: Array<{ user_id: string; performed_at: string }>) {
   const order = vi.fn().mockResolvedValue({ data: rows, error: null });
-  const lte = vi.fn().mockReturnValue({ order });
-  const gte = vi.fn().mockReturnValue({ lte });
-  const inFn = vi.fn().mockReturnValue({ gte });
+  const gte = vi.fn();
+  const lte = vi.fn();
+  const inFn = vi.fn().mockReturnValue({ order, gte, lte });
   const select = vi.fn().mockReturnValue({ in: inFn });
   const from = vi.fn().mockReturnValue({ select });
   vi.mocked(getBrowserClient).mockReturnValue({ from } as any);
@@ -286,13 +411,44 @@ describe("useTrainerWeekSchedule", () => {
     expect(result.current.daySessions[0].isMarkedComplete).toBe(true);
   });
 
+  it("reads workouts for the whole roster with NO date filter (full history)", async () => {
+    const mock = mockSupabaseWorkouts([]);
+
+    const { result } = renderHook(() => useTrainerWeekSchedule(args));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(mock.from).toHaveBeenCalledWith("workouts");
+    expect(mock.in).toHaveBeenCalledWith("user_id", ["client-1"]);
+    expect(mock.order).toHaveBeenCalledWith("performed_at", {
+      ascending: true,
+    });
+    // The whole point of the fix: no performed_at window.
+    expect(mock.gte).not.toHaveBeenCalled();
+    expect(mock.lte).not.toHaveBeenCalled();
+  });
+
+  it("does not re-read workouts with a narrower range when the week changes", async () => {
+    const mock = mockSupabaseWorkouts([]);
+
+    const { result, rerender } = renderHook(
+      (props: { rangeStart: string; rangeEnd: string }) =>
+        useTrainerWeekSchedule({ ...args, ...props }),
+      { initialProps: { rangeStart: RANGE_START, rangeEnd: RANGE_END } },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    rerender({ rangeStart: "2026-08-03", rangeEnd: "2026-08-09" });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(mock.gte).not.toHaveBeenCalled();
+    expect(mock.lte).not.toHaveBeenCalled();
+  });
+
   it("keeps the schedule when the workouts read fails (best-effort)", async () => {
     const order = vi
       .fn()
       .mockResolvedValue({ data: null, error: new Error("workouts down") });
-    const lte = vi.fn().mockReturnValue({ order });
-    const gte = vi.fn().mockReturnValue({ lte });
-    const inFn = vi.fn().mockReturnValue({ gte });
+    const inFn = vi.fn().mockReturnValue({ order });
     const select = vi.fn().mockReturnValue({ in: inFn });
     vi.mocked(getBrowserClient).mockReturnValue({
       from: vi.fn().mockReturnValue({ select }),

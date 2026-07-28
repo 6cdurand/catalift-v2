@@ -110,7 +110,12 @@ export interface BuildTrainerWeekScheduleInput {
   clients: TrainerScheduleClient[];
   /** clientId → that client's `client_programs` rows. */
   programsByClient: Record<string, ClientProgram[]>;
-  /** clientId → ISO dates (device-local) with a `workouts` row in range. */
+  /**
+   * clientId → ISO dates (device-local) with a `workouts` row, FULL HISTORY.
+   * Must NOT be pre-filtered to the visible week — deriveCompletedDayIndices
+   * needs the whole history or the trainer's next-day diverges from the
+   * client's. See fetchAllCompletedDates below.
+   */
   completedDatesByClient: Record<string, string[]>;
   /** `calendar_event_id` values already present in `client_sessions`. */
   markedKeys: Set<string>;
@@ -192,9 +197,24 @@ export function buildTrainerWeekSchedule(
     }
 
     for (const session of getSessionsForDate(sessions, selectedDate)) {
-      const programId = session.programId ?? "unknown";
+      // `ScheduledSession.programId` is optional in the type, but both builders
+      // in calendar/lib/selectors.ts always set it (:127, :161), so this is
+      // unreachable for kind === "program-day" — pinned by a test below.
+      //
+      // It must stay unreachable: a literal "unknown" in the dedupe key would
+      // make two DIFFERENT programs for the same client collide on the same
+      // (dayIndex, date) and silently dedupe to one ledger row. If a future
+      // session kind (booking / group-event / ad-hoc) arrives without a
+      // programId, give it its own key namespace rather than reusing this one.
+      if (!session.programId) {
+        console.error(
+          "[useTrainerWeekSchedule] session with no programId, skipping:",
+          session,
+        );
+        continue;
+      }
       const completedKey = buildCompletedKey(
-        programId,
+        session.programId,
         session.dayIndex,
         session.date,
       );
@@ -203,7 +223,7 @@ export function buildTrainerWeekSchedule(
         clientName: client.name,
         avatarUrl: client.avatarUrl,
         session,
-        programName: programNameById.get(programId) ?? "",
+        programName: programNameById.get(session.programId) ?? "",
         completedKey,
         isMarkedComplete: markedKeys.has(completedKey),
       });
@@ -283,11 +303,9 @@ export function useTrainerWeekSchedule(
           (programsByClient[program.clientId] ??= []).push(program);
         }
 
-        const completedDatesByClient = await fetchCompletedDatesInRange(
-          [...clientIds],
-          rangeStart,
-          rangeEnd,
-        );
+        const completedDatesByClient = await fetchAllCompletedDates([
+          ...clientIds,
+        ]);
         if (cancelled) return;
 
         const marked = await fetchTrainerSessions({ rangeStart, rangeEnd });
@@ -354,31 +372,40 @@ export function useTrainerWeekSchedule(
 }
 
 /**
- * One `workouts` read across the whole roster for the visible week.
+ * One `workouts` read across the whole roster — FULL HISTORY, no date filter.
+ *
+ * DO NOT ADD A DATE RANGE HERE. These dates feed deriveCompletedDayIndices,
+ * which needs a client's whole history to know where they are in the program:
+ *   - fixed mode maps each completed date to a weeklyPlan index, so filtering
+ *     to the visible week silently drops indices completed in earlier weeks;
+ *   - flexible mode returns [0 … completedDates.length - 1], so a week-scoped
+ *     read RESETS the client to day 0 on any week they haven't trained.
+ * Either way the trainer's "next day" would diverge from the client's own
+ * Today. The athlete path reads unfiltered for exactly this reason
+ * (useScheduledSessions.ts:164-168) and we must match it.
+ *
+ * Out-of-range dates are harmless downstream: buildScheduledSessions only ever
+ * does a Set membership test per date it already decided to render
+ * (selectors.ts:123), so extra history cannot invent sessions.
+ *
+ * No new cost: fetchClients already reads `workouts` for this roster unfiltered.
  *
  * BEST-EFFORT (same contract as fetchClients' session enrichment): a workouts
  * failure must not blank the schedule — rows simply render as not-yet-done.
- * `performed_at` is a timestamptz, so the local range is converted to absolute
- * instants before filtering and back to device-local ISO dates after.
+ * `performed_at` is a timestamptz, converted back to device-local ISO dates.
  */
-async function fetchCompletedDatesInRange(
+async function fetchAllCompletedDates(
   clientIds: string[],
-  rangeStart: string,
-  rangeEnd: string,
 ): Promise<Record<string, string[]>> {
   const byClient: Record<string, string[]> = {};
   if (clientIds.length === 0) return byClient;
 
   const supabase = getBrowserClient();
-  const fromInstant = new Date(`${rangeStart}T00:00:00`).toISOString();
-  const toInstant = new Date(`${rangeEnd}T23:59:59.999`).toISOString();
 
   const { data, error } = await supabase
     .from("workouts")
     .select("user_id, performed_at")
     .in("user_id", clientIds)
-    .gte("performed_at", fromInstant)
-    .lte("performed_at", toInstant)
     .order("performed_at", { ascending: true });
 
   if (error) {
