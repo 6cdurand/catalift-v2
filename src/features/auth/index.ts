@@ -10,6 +10,7 @@ export {
   acceptInvite,
   createInvitation,
   type InviteVerifyResult,
+  type AcceptInviteResult,
 } from "./api/invite";
 export { AuthShell } from "./components/AuthShell";
 export type { UserRole, CataliftUser } from "./types";

@@ -16,7 +16,15 @@ import { getBrowserClient } from "@/lib/supabase";
  * on a bare `?email=` param. The `accept_invitation` RPC is SECURITY DEFINER
  * and creates the `trainer_clients` link server-side — no client-side
  * auth/identity logic.
+ *
+ * BUG-021: the RPC now enforces that the logged-in user's email matches
+ * the invited email. If they differ, `acceptInvite` returns
+ * `{ status: "email_mismatch" }` instead of throwing.
  */
+
+export type AcceptInviteResult =
+  | { status: "accepted" }
+  | { status: "email_mismatch" };
 export type InviteVerifyResult =
   | { status: "disabled" }
   | { status: "valid"; email: string; trainerId?: string }
@@ -49,7 +57,7 @@ export async function verifyInviteToken(
 export async function acceptInvite(
   token: string,
   userId: string,
-): Promise<void> {
+): Promise<AcceptInviteResult> {
   if (!isFeatureEnabled("invites")) {
     throw new Error("invites disabled");
   }
@@ -60,12 +68,19 @@ export async function acceptInvite(
   });
 
   if (error) {
+    // BUG-021: RPC raises 'email_mismatch' (errcode P0010) when the logged-in
+    // user's email does not match the invited email. Return a typed result
+    // so the UI can show a targeted message instead of a generic error.
+    if (error.message?.includes("email_mismatch")) {
+      return { status: "email_mismatch" };
+    }
     throw error;
   }
 
   // userId is not used directly — the SECURITY DEFINER RPC uses auth.uid()
   // internally. The param is kept for API compatibility with the /invite page.
   void userId;
+  return { status: "accepted" };
 }
 
 /**

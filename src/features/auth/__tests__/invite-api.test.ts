@@ -107,15 +107,28 @@ describe("acceptInvite", () => {
     vi.clearAllMocks();
   });
 
-  it("resolves when accept_invitation RPC returns no error", async () => {
+  it("returns {status:'accepted'} when accept_invitation RPC returns no error", async () => {
     (getBrowserClient as any).mockReturnValue(
       makeRpcClient({ data: TRAINER_ID, error: null }),
     );
 
-    await expect(acceptInvite(TOKEN, "client-uuid")).resolves.toBeUndefined();
+    const result = await acceptInvite(TOKEN, "client-uuid");
+    expect(result).toEqual({ status: "accepted" });
   });
 
-  it("throws when accept_invitation RPC returns an error", async () => {
+  it("returns {status:'email_mismatch'} when RPC returns email_mismatch error", async () => {
+    (getBrowserClient as any).mockReturnValue(
+      makeRpcClient({
+        data: null,
+        error: { message: "email_mismatch" },
+      }),
+    );
+
+    const result = await acceptInvite(TOKEN, "client-uuid");
+    expect(result).toEqual({ status: "email_mismatch" });
+  });
+
+  it("throws when accept_invitation RPC returns a non-email_mismatch error", async () => {
     (getBrowserClient as any).mockReturnValue(
       makeRpcClient({ data: null, error: { message: "Already accepted" } }),
     );

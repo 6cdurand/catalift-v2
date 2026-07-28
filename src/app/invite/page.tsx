@@ -19,7 +19,8 @@ type Status =
   | "invalid"
   | "expired"
   | "accepted"
-  | "disabled";
+  | "disabled"
+  | "email_mismatch";
 
 /**
  * Trainer-invite landing — v1 `invite/page.tsx` ported VERBATIM (G-19).
@@ -83,15 +84,22 @@ function InvitePageContent() {
   const acceptAttempted = useRef(false);
 
   // Auto-accept when a user returns authenticated (e.g. after signup redirect).
+  // BUG-021: the RPC enforces email match server-side. If the logged-in user's
+  // email doesn't match the invited email, the RPC returns an email_mismatch
+  // error and we show the mismatch UI.
   useEffect(() => {
     if (status === "valid" && user && token && !acceptAttempted.current) {
       acceptAttempted.current = true;
       let cancelled = false;
       acceptInvite(token, user.id)
-        .then(() => {
+        .then((result) => {
           if (!cancelled) {
-            setStatus("accepted");
-            setTimeout(() => router.push("/today"), 2000);
+            if (result.status === "email_mismatch") {
+              setStatus("email_mismatch");
+            } else {
+              setStatus("accepted");
+              setTimeout(() => router.push("/today"), 2000);
+            }
           }
         })
         .catch((e) => {
@@ -110,9 +118,13 @@ function InvitePageContent() {
       if (acceptAttempted.current) return;
       acceptAttempted.current = true;
       try {
-        await acceptInvite(token, user.id);
-        setStatus("accepted");
-        setTimeout(() => router.push("/today"), 2000);
+        const result = await acceptInvite(token, user.id);
+        if (result.status === "email_mismatch") {
+          setStatus("email_mismatch");
+        } else {
+          setStatus("accepted");
+          setTimeout(() => router.push("/today"), 2000);
+        }
       } catch (e) {
         console.error("[Invite] Accept failed:", e);
         acceptAttempted.current = false;
@@ -207,6 +219,22 @@ function InvitePageContent() {
                 </CardDescription>
               </>
             )}
+
+            {status === "email_mismatch" && (
+              <>
+                <div className="w-16 h-16 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <XCircle className="w-8 h-8 text-amber-500" />
+                </div>
+                <CardTitle className="text-white">Email Mismatch</CardTitle>
+                <CardDescription>
+                  This invitation was sent to{" "}
+                  <span className="font-medium text-gray-100">{inviteData?.email}</span>{" "}
+                  but you are signed in as{" "}
+                  <span className="font-medium text-gray-100">{user?.email}</span>.
+                  Please sign out and use the email address your trainer invited.
+                </CardDescription>
+              </>
+            )}
           </CardHeader>
 
           <CardContent>
@@ -247,7 +275,8 @@ function InvitePageContent() {
 
             {(status === "invalid" ||
               status === "expired" ||
-              status === "disabled") && (
+              status === "disabled" ||
+              status === "email_mismatch") && (
               <Button
                 onClick={() => router.push("/signup")}
                 variant="outline"
