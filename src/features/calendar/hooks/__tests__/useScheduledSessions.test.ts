@@ -105,6 +105,30 @@ describe("buildScheduledSessionsResult — PARITY (the one law)", () => {
     }
   });
 
+  it("BUG-023 — todaySessions honours the start_date clamp, in parity with the full sessions list", () => {
+    // today = Tue 2024-01-09, which is BEFORE the program's start_date — a
+    // pre-start day should not surface in either sessions or todaySessions.
+    const preStartProgram = {
+      ...fixedProgram,
+      startDate: "2024-01-10", // Wednesday — after today
+    };
+
+    const result = buildScheduledSessionsResult({
+      program: preStartProgram,
+      next: makeNextResult(),
+      completedDates: [],
+      rangeStart: RANGE_START,
+      rangeEnd: RANGE_END,
+      today: "2024-01-09",
+    });
+
+    expect(result.sessions.find((s) => s.date === "2024-01-08")).toBeUndefined();
+    expect(result.todaySessions).toEqual(
+      getSessionsForDate(result.sessions, "2024-01-09"),
+    );
+    expect(result.todaySessions).toEqual([]); // Tuesday is not a scheduled day here
+  });
+
   it("returns empty sessions + todaySessions when program is null", () => {
     const result = buildScheduledSessionsResult({
       program: null,
