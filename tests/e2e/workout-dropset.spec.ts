@@ -9,7 +9,11 @@ test.describe('Drop-set execution (faithful v1 port)', () => {
   test.beforeEach(async ({ page }) => {
     page.on('dialog', (d) => d.dismiss());
     await mockAuthSession(page);
-    await page.goto('/workout/active');
+    // BUG-025: /workout/active no longer auto-starts a workout on mount — drive
+    // the real entry point (Start Workout on /workouts) instead.
+    await page.goto('/workouts');
+    await page.getByRole('button', { name: 'Start Workout' }).click();
+    await page.waitForURL(/\/workout\/active$/);
   });
 
   test('add a drop set to an exercise → it renders, is editable, and persists across reload', async ({

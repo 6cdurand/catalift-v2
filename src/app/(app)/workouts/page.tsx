@@ -9,6 +9,8 @@ import {
   fetchWorkoutHistory,
   type WorkoutHistoryItem,
 } from "@/features/workout-engine/api/fetch-history";
+// eslint-disable-next-line no-restricted-imports -- app/ pages may import from features
+import { useActiveWorkoutStore } from "@/features/workout-engine/stores/active-workout-store";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -97,6 +99,19 @@ export default function WorkoutsPage() {
     };
   }, [user, loading]);
 
+  // BUG-025: seed the store BEFORE navigating (matches the #96 pattern used by
+  // today/page.tsx and ClientProgramPage.tsx) — /workout/active no longer
+  // auto-starts a workout on mount, so this is the entry point that must do it.
+  // Don't clobber an in-progress workout — resume it instead.
+  const handleStartWorkout = () => {
+    if (!user) return;
+    const store = useActiveWorkoutStore.getState();
+    if (!store.activeWorkout) {
+      store.startWorkout({ userId: user.id, name: "Workout" });
+    }
+    router.push("/workout/active");
+  };
+
   if (loading) {
     return (
       <div>
@@ -115,7 +130,7 @@ export default function WorkoutsPage() {
       <PageHeader title="Workouts" subtitle="Your training history" />
       <div className="px-5 py-4">
         <button
-          onClick={() => router.push("/workout/active")}
+          onClick={handleStartWorkout}
           className="w-full rounded-xl bg-linear-to-r from-sky-500 to-sky-600 px-4 py-4 text-white font-semibold shadow-lg shadow-sky-500/20 transition-all hover:from-sky-600 hover:to-sky-700 active:scale-[0.98] flex items-center justify-center gap-2"
         >
           <svg

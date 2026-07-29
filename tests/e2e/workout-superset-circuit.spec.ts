@@ -6,11 +6,14 @@ import { mockAuthSession } from './auth-helpers';
 test.describe('Superset + Circuit execution (w2b)', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuthSession(page);
-    await page.goto('/workout/active');
+    // BUG-025: /workout/active no longer auto-starts a workout on mount — drive
+    // the real entry point (Start Workout on /workouts) instead.
+    await page.goto('/workouts');
+    await page.getByRole('button', { name: 'Start Workout' }).click();
+    await page.waitForURL(/\/workout\/active$/);
   });
 
   test('create a Superset from two exercises via the actions menu → log a set in each → both persist', async ({ page }) => {
-    // Wait for workout to auto-start
     await expect(page.getByTestId('add-chip-bar')).toBeVisible();
 
     // Add two standalone strength exercises (Strength chip → exercise picker opens immediately)

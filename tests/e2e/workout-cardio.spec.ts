@@ -8,7 +8,11 @@ test.describe('Cardio block execution (w2c)', () => {
     // Auto-dismiss alert() so it doesn't block JS if persist fails
     page.on('dialog', (d) => d.dismiss());
     await mockAuthSession(page);
-    await page.goto('/workout/active');
+    // BUG-025: /workout/active no longer auto-starts a workout on mount — drive
+    // the real entry point (Start Workout on /workouts) instead.
+    await page.goto('/workouts');
+    await page.getByRole('button', { name: 'Start Workout' }).click();
+    await page.waitForURL(/\/workout\/active$/);
   });
 
   test('add cardio (Running, 30 min, 5 km, 300 cal) → cardio card appears with values', async ({

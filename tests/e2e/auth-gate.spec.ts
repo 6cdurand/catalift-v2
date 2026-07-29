@@ -73,9 +73,22 @@ test.describe('Auth gate (BUG-012) — signed IN', () => {
     });
   }
 
-  test('hard-nav to /workout/active renders (no bounce, no white screen)', async ({
+  test('hard-nav to /workout/active with no active workout redirects to /workouts (BUG-025)', async ({
     page,
   }) => {
+    await page.goto('/workout/active');
+    await expect(page).toHaveURL(/\/workouts$/);
+  });
+
+  test('hard-nav to /workout/active renders (no bounce, no white screen) when a workout is in progress', async ({
+    page,
+  }) => {
+    // BUG-025: /workout/active no longer auto-starts a workout on mount — seed one
+    // via the real entry point first, then hard-navigate straight to the route.
+    await page.goto('/workouts');
+    await page.getByRole('button', { name: 'Start Workout' }).click();
+    await page.waitForURL(/\/workout\/active$/);
+
     await page.goto('/workout/active');
     await expect(page).toHaveURL(/\/workout\/active$/);
     await expect(page.getByTestId('add-chip-bar')).toBeVisible({ timeout: 10000 });

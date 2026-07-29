@@ -6,7 +6,11 @@ import { mockAuthSession } from './auth-helpers';
 test.describe('Workout summary screen', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuthSession(page);
-    await page.goto('/workout/active');
+    // BUG-025: /workout/active no longer auto-starts a workout on mount — drive
+    // the real entry point (Start Workout on /workouts) instead.
+    await page.goto('/workouts');
+    await page.getByRole('button', { name: 'Start Workout' }).click();
+    await page.waitForURL(/\/workout\/active$/);
   });
 
   test('finish workout → summary appears → Done redirects to /workouts', async ({ page }) => {
