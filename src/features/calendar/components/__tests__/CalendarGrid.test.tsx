@@ -137,20 +137,133 @@ describe("CalendarGrid", () => {
     expect(screen.getByText("January 2024")).toBeDefined();
   });
 
-  it("renders view-mode toggle with Month active and Week/Day disabled", () => {
+  it("renders view-mode toggle with Month active and Week/Day enabled", () => {
     render(
       <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
     );
     const monthBtn = screen.getByText("Month");
     expect(monthBtn).toBeDefined();
 
-    const weekBtn = screen.getByLabelText("Week view (coming soon)");
+    const weekBtn = screen.getByLabelText("Week view");
     expect(weekBtn).toBeDefined();
-    expect(weekBtn).toHaveProperty("disabled", true);
+    expect(weekBtn).toHaveProperty("disabled", false);
 
-    const dayBtn = screen.getByLabelText("Day view (coming soon)");
+    const dayBtn = screen.getByLabelText("Day view");
     expect(dayBtn).toBeDefined();
-    expect(dayBtn).toHaveProperty("disabled", true);
+    expect(dayBtn).toHaveProperty("disabled", false);
+  });
+
+  // Regression lock for the exact bug being fixed (A2 / P-01): the toggle used
+  // to set state that nothing consumed. Assert month/week/day render distinct
+  // DOM structures and that clicking the toggle actually swaps them.
+  describe("view-mode switch actually changes the rendered structure", () => {
+    it("month view renders the month grid and no week/day grid", () => {
+      const { container } = render(
+        <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+      );
+      expect(container.querySelector('[data-slot="month-grid"]')).not.toBeNull();
+      expect(container.querySelector('[data-slot="week-grid"]')).toBeNull();
+      expect(container.querySelector('[data-slot="day-grid"]')).toBeNull();
+    });
+
+    it("clicking Week swaps in the week grid and removes the month grid", () => {
+      const { container } = render(
+        <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+      );
+      fireEvent.click(screen.getByLabelText("Week view"));
+
+      expect(container.querySelector('[data-slot="week-grid"]')).not.toBeNull();
+      expect(container.querySelector('[data-slot="month-grid"]')).toBeNull();
+      expect(container.querySelector('[data-slot="day-grid"]')).toBeNull();
+      // Week grid has a 7-column day header, structurally distinct from month.
+      expect(container.querySelectorAll("[data-week-date]").length).toBe(7);
+    });
+
+    it("clicking Day swaps in the day grid and removes the month/week grid", () => {
+      const { container } = render(
+        <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+      );
+      fireEvent.click(screen.getByLabelText("Day view"));
+
+      expect(container.querySelector('[data-slot="day-grid"]')).not.toBeNull();
+      expect(container.querySelector('[data-slot="month-grid"]')).toBeNull();
+      expect(container.querySelector('[data-slot="week-grid"]')).toBeNull();
+      // Day grid renders exactly one day (unlike week's 7 or month's 35-42).
+      expect(container.querySelectorAll("[data-hour]").length).toBe(14);
+    });
+
+    it("clicking Month after Week/Day returns to the month grid", () => {
+      const { container } = render(
+        <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+      );
+      fireEvent.click(screen.getByLabelText("Day view"));
+      expect(container.querySelector('[data-slot="day-grid"]')).not.toBeNull();
+
+      fireEvent.click(screen.getByLabelText("Month view"));
+      expect(container.querySelector('[data-slot="month-grid"]')).not.toBeNull();
+      expect(container.querySelector('[data-slot="day-grid"]')).toBeNull();
+    });
+  });
+
+  describe("week/day nav + onSlotClick wiring", () => {
+    it("week view header label shows a date range, not a month name", () => {
+      render(
+        <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+      );
+      fireEvent.click(screen.getByLabelText("Week view"));
+      // today = 2024-01-10 (Wed); its week is Jan 7 – Jan 13.
+      expect(screen.getByText("Jan 7 – Jan 13")).toBeDefined();
+    });
+
+    it("day view header label shows the anchored day", () => {
+      render(
+        <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+      );
+      fireEvent.click(screen.getByLabelText("Day view"));
+      expect(screen.getByText("Wed, Jan 10")).toBeDefined();
+    });
+
+    it("Next/Previous shift by a week in week view and by a day in day view", () => {
+      render(
+        <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+      );
+      fireEvent.click(screen.getByLabelText("Week view"));
+      expect(screen.getByText("Jan 7 – Jan 13")).toBeDefined();
+      fireEvent.click(screen.getByLabelText("Next week"));
+      expect(screen.getByText("Jan 14 – Jan 20")).toBeDefined();
+
+      // Switching view keeps the same anchor date (Jan 17 — advanced by the
+      // week-nav click above), it does not jump to the end of the week.
+      fireEvent.click(screen.getByLabelText("Day view"));
+      expect(screen.getByText("Wed, Jan 17")).toBeDefined();
+      fireEvent.click(screen.getByLabelText("Previous day"));
+      expect(screen.getByText("Tue, Jan 16")).toBeDefined();
+    });
+
+    it("clicking an empty hour slot in day view fires onSlotClick(date, hour)", () => {
+      const onSlotClick = vi.fn();
+      const { container } = render(
+        <CalendarGrid
+          sessions={sessions}
+          today={today}
+          initialMonth={new Date(2024, 0, 1)}
+          onSlotClick={onSlotClick}
+        />,
+      );
+      fireEvent.click(screen.getByLabelText("Day view"));
+      const slot = container.querySelector('[data-hour="6"]')!;
+      fireEvent.click(slot);
+      expect(onSlotClick).toHaveBeenCalledWith("2024-01-10", 6);
+    });
+
+    it("onSlotClick is optional — clicking a slot without it is a no-op", () => {
+      const { container } = render(
+        <CalendarGrid sessions={sessions} today={today} initialMonth={new Date(2024, 0, 1)} />,
+      );
+      fireEvent.click(screen.getByLabelText("Day view"));
+      const slot = container.querySelector('[data-hour="6"]')!;
+      expect(() => fireEvent.click(slot)).not.toThrow();
+    });
   });
 
   it("selecting a day renders its session list below the grid", () => {

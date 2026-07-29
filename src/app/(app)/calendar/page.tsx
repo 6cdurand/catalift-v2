@@ -45,7 +45,13 @@ export default function CalendarPage() {
           </p>
         )}
         {!isLoading && !error && (
-          <CalendarGrid sessions={sessions} today={today} />
+          <CalendarGrid
+            sessions={sessions}
+            today={today}
+            // TODO(A1): open the Add Event dialog prefilled with (date, hour)
+            // once calendar_events exists (B1) and the booking UI ships.
+            onSlotClick={() => {}}
+          />
         )}
       </div>
     </div>

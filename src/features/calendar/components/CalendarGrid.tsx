@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DayCell } from "./DayCell";
 import { SelectedDayList } from "./SelectedDayList";
+import { WeekView } from "./WeekView";
+import { DayView } from "./DayView";
+import { addDaysISO, formatDayHeaderLabel, formatWeekRangeLabel, getWeekDates } from "./calendarDate";
 import type { ScheduledSession } from "../types";
 
 export type CalendarViewMode = "month" | "week" | "day";
@@ -15,6 +18,8 @@ export interface CalendarGridProps {
   today: string; // ISO YYYY-MM-DD
   initialMonth?: Date; // first day of the month to display
   onSelectDay?: (date: string, sessions: ScheduledSession[]) => void;
+  /** Empty time-slot click in week/day view. Host wires this to Add Event (A1). */
+  onSlotClick?: (date: string, hour: number) => void;
 }
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -39,6 +44,7 @@ function CalendarGridBase({
   today,
   initialMonth,
   onSelectDay,
+  onSlotClick,
 }: CalendarGridProps) {
   const [month, setMonth] = useState<Date>(() =>
     initialMonth ? getFirstOfMonth(initialMonth) : getFirstOfMonth(new Date()),
@@ -49,6 +55,11 @@ function CalendarGridBase({
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
+
+  // Week/day views need an anchor date; fall back to `today` until the user
+  // taps a day (mirrors v1, where `selectedDate` always defaults to today).
+  const anchorDate = selectedDate ?? today;
+  const weekDates = useMemo(() => getWeekDates(anchorDate), [anchorDate]);
 
   // Memoize the grid cells off sessions + month — no per-cell refetch.
   const gridDays = useMemo(() => {
@@ -84,11 +95,23 @@ function CalendarGridBase({
   }, [month]);
 
   const handlePrev = () => {
-    setMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    if (viewMode === "month") {
+      setMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    } else if (viewMode === "week") {
+      setSelectedDate(addDaysISO(anchorDate, -7));
+    } else {
+      setSelectedDate(addDaysISO(anchorDate, -1));
+    }
   };
 
   const handleNext = () => {
-    setMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    if (viewMode === "month") {
+      setMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    } else if (viewMode === "week") {
+      setSelectedDate(addDaysISO(anchorDate, 7));
+    } else {
+      setSelectedDate(addDaysISO(anchorDate, 1));
+    }
   };
 
   const handleToday = () => {
@@ -113,40 +136,41 @@ function CalendarGridBase({
             variant={viewMode === "month" ? "default" : "ghost"}
             onClick={() => setViewMode("month")}
             className={cn("h-7 px-2.5 text-xs", viewMode === "month" ? "bg-sky-500" : "text-gray-400")}
+            aria-label="Month view"
           >
             Month
           </Button>
           <Button
             size="sm"
-            variant="ghost"
-            disabled
+            variant={viewMode === "week" ? "default" : "ghost"}
             onClick={() => setViewMode("week")}
-            className={cn("h-7 px-2.5 text-xs text-gray-400")}
-            aria-label="Week view (coming soon)"
+            className={cn("h-7 px-2.5 text-xs", viewMode === "week" ? "bg-sky-500" : "text-gray-400")}
+            aria-label="Week view"
           >
             Week
           </Button>
           <Button
             size="sm"
-            variant="ghost"
-            disabled
+            variant={viewMode === "day" ? "default" : "ghost"}
             onClick={() => setViewMode("day")}
-            className={cn("h-7 px-2.5 text-xs text-gray-400")}
-            aria-label="Day view (coming soon)"
+            className={cn("h-7 px-2.5 text-xs", viewMode === "day" ? "bg-sky-500" : "text-gray-400")}
+            aria-label="Day view"
           >
             Day
           </Button>
         </div>
 
-        {/* Month navigation */}
+        {/* Nav — label matches the active view (month/week/day) */}
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon-sm" onClick={handlePrev} aria-label="Previous month">
+          <Button variant="ghost" size="icon-sm" onClick={handlePrev} aria-label={`Previous ${viewMode}`}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="min-w-[120px] text-center text-sm font-semibold text-gray-900">
-            {getMonthLabel(month)}
+          <span className="min-w-[140px] text-center text-sm font-semibold text-gray-900">
+            {viewMode === "month" && getMonthLabel(month)}
+            {viewMode === "week" && formatWeekRangeLabel(weekDates)}
+            {viewMode === "day" && formatDayHeaderLabel(anchorDate)}
           </span>
-          <Button variant="ghost" size="icon-sm" onClick={handleNext} aria-label="Next month">
+          <Button variant="ghost" size="icon-sm" onClick={handleNext} aria-label={`Next ${viewMode}`}>
             <ChevronRight className="h-4 w-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={handleToday} className="ml-1 h-7 px-2.5 text-xs">
@@ -155,32 +179,56 @@ function CalendarGridBase({
         </div>
       </div>
 
-      {/* Weekday header */}
-      <div className="mb-1 grid grid-cols-7 gap-1">
-        {WEEKDAY_LABELS.map((label) => (
-          <div
-            key={label}
-            className="py-1 text-center text-xs font-medium text-muted-foreground"
-          >
-            {label}
+      {viewMode === "month" && (
+        <div data-slot="month-grid">
+          {/* Weekday header */}
+          <div className="mb-1 grid grid-cols-7 gap-1">
+            {WEEKDAY_LABELS.map((label) => (
+              <div
+                key={label}
+                className="py-1 text-center text-xs font-medium text-muted-foreground"
+              >
+                {label}
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* Day cells */}
-      <div className="grid grid-cols-7 gap-1">
-        {gridDays.map((cell) => (
-          <DayCell
-            key={cell.date}
-            date={cell.date}
-            sessions={sessions}
-            today={today}
-            isOutsideMonth={cell.isOutsideMonth}
-            isSelected={cell.date === selectedDate}
-            onSelect={handleSelectDay}
-          />
-        ))}
-      </div>
+          {/* Day cells */}
+          <div className="grid grid-cols-7 gap-1">
+            {gridDays.map((cell) => (
+              <DayCell
+                key={cell.date}
+                date={cell.date}
+                sessions={sessions}
+                today={today}
+                isOutsideMonth={cell.isOutsideMonth}
+                isSelected={cell.date === selectedDate}
+                onSelect={handleSelectDay}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {viewMode === "week" && (
+        <WeekView
+          sessions={sessions}
+          today={today}
+          weekDates={weekDates}
+          selectedDate={selectedDate}
+          onSelectDay={handleSelectDay}
+          onSlotClick={onSlotClick}
+        />
+      )}
+
+      {viewMode === "day" && (
+        <DayView
+          sessions={sessions}
+          date={anchorDate}
+          onSelectDay={handleSelectDay}
+          onSlotClick={onSlotClick}
+        />
+      )}
 
       {/* Status legend */}
       <div className="mt-3 flex items-center justify-center gap-4 text-xs text-muted-foreground">
