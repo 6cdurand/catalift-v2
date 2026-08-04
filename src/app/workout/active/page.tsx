@@ -15,7 +15,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Heart, Flame, Dumbbell, Zap, Link2, Pause, Play, ChevronDown, StickyNote, Timer } from 'lucide-react';
+import { Heart, Flame, Dumbbell, Zap, Link2, Pause, Play, ChevronDown, StickyNote, Timer, Trash2 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { exerciseLibrary, allExercises } from '@/lib/exercises';
 import {
   createAndPersistCustomExercise,
@@ -644,9 +651,13 @@ export default function ActiveWorkoutPage() {
     resetRestTimer,
     pauseWorkoutTimer,
     resumeWorkoutTimer,
+    cancelWorkout,
   } = useActiveWorkoutStore();
 
   const [showAddExercise, setShowAddExercise] = useState(false);
+  // Discard/cancel confirmation (v1 active/page.tsx:298) — two-step confirm before
+  // clearing the active workout. See handleCancelWorkout below.
+  const [showExitDialog, setShowExitDialog] = useState(false);
   const [showAddCardio, setShowAddCardio] = useState(false);
   const [showAddBlock, setShowAddBlock] = useState<'superset' | 'circuit' | false>(false);
   // v1 header note control (#82): toggles the note panel below the blue header.
@@ -966,6 +977,14 @@ export default function ActiveWorkoutPage() {
     }
   };
 
+  // Discard/cancel (v1 active/page.tsx:2288-2292). Store-only clear (BUG report P-07);
+  // no Supabase writes happen for a discarded workout.
+  const handleCancelWorkout = () => {
+    cancelWorkout();
+    toast('Workout cancelled');
+    router.push('/workouts');
+  };
+
   return (
     <div className="min-h-screen bg-white">
       {/* Blue photo header panel (faithful port of v1 active header ~2919-3060):
@@ -991,6 +1010,15 @@ export default function ActiveWorkoutPage() {
               <p className="flex-1 min-w-0 text-center font-semibold text-white truncate">
                 {activeWorkout?.name || 'Workout'}
               </p>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowExitDialog(true)}
+                className="text-red-200 hover:bg-red-500/20 h-7 text-xs px-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline ml-1">Discard</span>
+              </Button>
               <Button
                 onClick={handleFinish}
                 disabled={isFinishing}
@@ -1228,6 +1256,34 @@ export default function ActiveWorkoutPage() {
           userId={user?.id}
         />
       )}
+
+      {/* Exit Dialog (v1 active/page.tsx:5381-5407) */}
+      <Dialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <DialogContent className="bg-white border-gray-200">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900">Discard Workout?</DialogTitle>
+            <DialogDescription>
+              This will cancel your current workout and all progress will be lost.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setShowExitDialog(false)}
+              className="flex-1 border-gray-200"
+            >
+              Continue Workout
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancelWorkout}
+              className="flex-1"
+            >
+              Discard
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Toast host — /workout/active is outside the (app) group, so it has no Toaster.
           Mount one here for the PB celebration (sonner). */}
