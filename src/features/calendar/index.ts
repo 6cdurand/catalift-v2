@@ -27,3 +27,5 @@ export {
 export { CalendarGrid, type CalendarGridProps, type CalendarViewMode } from "./components/CalendarGrid";
 export { DayCell, type DayCellProps } from "./components/DayCell";
 export { SelectedDayList, type SelectedDayListProps } from "./components/SelectedDayList";
+export { WeekView, type WeekViewProps } from "./components/WeekView";
+export { DayView, type DayViewProps } from "./components/DayView";
