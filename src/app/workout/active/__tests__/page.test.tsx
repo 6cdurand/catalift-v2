@@ -4,7 +4,7 @@
 // WITH an active workout must render in place (no redirect).
 
 import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from "vitest";
-import { render, waitFor, cleanup } from "@testing-library/react";
+import { render, waitFor, cleanup, screen, fireEvent } from "@testing-library/react";
 import type { LoggedWorkout } from "@/features/workout-engine/types";
 
 // jsdom has no matchMedia; the page renders sonner's <Toaster /> unconditionally,
@@ -36,6 +36,7 @@ vi.mock("@/features/auth", () => ({
 }));
 
 const mockStartWorkout = vi.fn();
+const mockCancelWorkout = vi.fn();
 let mockActiveWorkout: LoggedWorkout | null = null;
 
 vi.mock("@/features/workout-engine/stores/active-workout-store", () => ({
@@ -74,6 +75,7 @@ vi.mock("@/features/workout-engine/stores/active-workout-store", () => ({
     resetRestTimer: vi.fn(),
     pauseWorkoutTimer: vi.fn(),
     resumeWorkoutTimer: vi.fn(),
+    cancelWorkout: mockCancelWorkout,
   }),
 }));
 
@@ -126,5 +128,65 @@ describe("ActiveWorkoutPage mount (BUG-025)", () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(mockReplace).not.toHaveBeenCalled();
     expect(mockStartWorkout).not.toHaveBeenCalled();
+  });
+});
+
+// P-07: discard/cancel control (missed port — cancelWorkout existed in the store
+// with zero call sites). Two-step confirm, faithful v1 UX port.
+describe("ActiveWorkoutPage discard/cancel (P-07)", () => {
+  const workout: LoggedWorkout = {
+    id: "w1",
+    userId: "user-1",
+    name: "Workout",
+    performedAt: new Date().toISOString(),
+    blocks: [],
+    totalVolume: 0,
+  };
+
+  beforeEach(() => {
+    mockActiveWorkout = workout;
+    mockCancelWorkout.mockClear();
+    mockPush.mockClear();
+    mockReplace.mockClear();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("renders a Discard button when a workout is active", () => {
+    render(<ActiveWorkoutPage />);
+    expect(screen.getByRole("button", { name: /discard/i })).toBeTruthy();
+  });
+
+  it("clicking Discard does not immediately cancel — it opens a confirmation dialog", () => {
+    render(<ActiveWorkoutPage />);
+    fireEvent.click(screen.getByRole("button", { name: /discard/i }));
+
+    expect(screen.getByText("Discard Workout?")).toBeTruthy();
+    expect(mockCancelWorkout).not.toHaveBeenCalled();
+  });
+
+  it('"Continue Workout" closes the dialog and leaves activeWorkout intact', () => {
+    render(<ActiveWorkoutPage />);
+    fireEvent.click(screen.getByRole("button", { name: /discard/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue Workout" }));
+
+    expect(screen.queryByText("Discard Workout?")).toBeNull();
+    expect(mockCancelWorkout).not.toHaveBeenCalled();
+    expect(mockActiveWorkout).toBe(workout);
+  });
+
+  it('"Discard" calls cancelWorkout and pushes to /workouts; no persist/insert call fires', () => {
+    render(<ActiveWorkoutPage />);
+    fireEvent.click(screen.getByRole("button", { name: /discard/i }));
+
+    // Two buttons are now named "Discard" — the header trigger and the dialog's
+    // confirm action. The confirm action is the last one rendered.
+    const discardButtons = screen.getAllByRole("button", { name: /discard/i });
+    fireEvent.click(discardButtons[discardButtons.length - 1]);
+
+    expect(mockCancelWorkout).toHaveBeenCalledTimes(1);
+    expect(mockPush).toHaveBeenCalledWith("/workouts");
   });
 });
