@@ -262,6 +262,33 @@ end $$;
 reset role;
 
 -- ------------------------------------------------------------
+-- 8b. Booking modes: template slug alone is fine; program + template
+--     together is rejected (calendar_events_single_source_ck).
+-- ------------------------------------------------------------
+do $$
+begin
+  insert into public.calendar_events
+    (id, title, type, date, trainer_id, client_id, template_slug)
+  values
+    ('proof17-template', 'Upper 3-day', 'workout', current_date,
+     'aaaaaaaa-0000-0000-0000-000000000017', 'bbbbbbbb-0000-0000-0000-000000000017',
+     'upper-3day');
+  raise notice 'PASS 8b-i: a trainer-template slug stores without touching workout_id';
+
+  begin
+    insert into public.calendar_events
+      (id, title, type, date, trainer_id, program_id, program_day_index, template_slug)
+    values
+      ('proof17-both', 'Confused', 'workout', current_date,
+       'aaaaaaaa-0000-0000-0000-000000000017',
+       '99999999-9999-9999-9999-999999999999', 0, 'upper-3day');
+    raise exception 'FAIL: a row claimed both a program and a template';
+  exception when check_violation then
+    raise notice 'PASS 8b-ii: program_id + template_slug together is rejected';
+  end;
+end $$;
+
+-- ------------------------------------------------------------
 -- 9. historical_offset_sessions is untouched (INC-002).
 -- ------------------------------------------------------------
 do $$

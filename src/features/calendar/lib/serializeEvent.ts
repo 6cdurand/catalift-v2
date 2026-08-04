@@ -4,6 +4,12 @@
 // `@/types`) uses camelCase + `undefined` for absent values. Every
 // conversion goes through here so no caller hand-rolls a mapping and
 // drifts (that is how v1 ended up with a stale schema artefact).
+//
+// NOT mapped, deliberately:
+//   • `color` — no such column. v2 derives event colour from `type` in the
+//     week/day views (#105); the domain field is a v1 leftover.
+//   • `location` — the column exists (v1 parity) but the domain type has no
+//     field for it. Nothing writes it yet; A1/A2 can add it as a pair.
 
 import type { Database } from "@/types/database";
 import type { CalendarEvent } from "@/types";
@@ -68,13 +74,13 @@ export function rowToCalendarEvent(r: CalendarEventRow): CalendarEvent {
     workoutId: orUndefined(r.workout_id),
     notes: orUndefined(r.notes),
     status: r.status as CalendarEventStatus,
-    color: orUndefined(r.color),
     clientConfirmed: r.client_confirmed,
     clientConfirmedAt: orUndefined(r.client_confirmed_at),
     recurrenceGroup: orUndefined(r.recurrence_group),
     contactName: orUndefined(r.contact_name),
     programId: orUndefined(r.program_id),
     programDayIndex: orUndefined(r.program_day_index),
+    templateSlug: orUndefined(r.template_slug),
     ownerUserId: orUndefined(r.owner_user_id),
     eventScope: orUndefined(r.event_scope) as
       | CalendarEventScope
@@ -86,6 +92,11 @@ export function rowToCalendarEvent(r: CalendarEventRow): CalendarEvent {
  * Full row for an insert/upsert. `event_scope` and `owner_user_id` are
  * always populated — they are load-bearing for calendar visibility, and a
  * row written without them silently lands on the wrong calendar.
+ *
+ * `programId` and `templateSlug` are the two "what is this session" booking
+ * modes and are mutually exclusive; the DB enforces it with
+ * `calendar_events_single_source_ck`, so a caller sending both gets a
+ * check violation rather than an undefined row.
  */
 export function calendarEventToRow(event: CalendarEvent): CalendarEventInsert {
   return {
@@ -101,9 +112,9 @@ export function calendarEventToRow(event: CalendarEvent): CalendarEventInsert {
     workout_id: orNull(event.workoutId),
     program_id: orNull(event.programId),
     program_day_index: orNull(event.programDayIndex),
+    template_slug: orNull(event.templateSlug),
     status: event.status,
     notes: orNull(event.notes),
-    color: orNull(event.color),
     client_confirmed: event.clientConfirmed ?? false,
     client_confirmed_at: orNull(event.clientConfirmedAt),
     recurrence_group: orNull(event.recurrenceGroup),

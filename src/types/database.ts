@@ -570,7 +570,6 @@ export type Database = {
           client_confirmed: boolean
           client_confirmed_at: string | null
           client_id: string | null
-          color: string | null
           contact_name: string | null
           created_at: string
           date: string
@@ -586,6 +585,7 @@ export type Database = {
           recurrence_group: string | null
           start_time: string | null
           status: string
+          template_slug: string | null
           title: string
           trainer_id: string | null
           type: string
@@ -596,7 +596,6 @@ export type Database = {
           client_confirmed?: boolean
           client_confirmed_at?: string | null
           client_id?: string | null
-          color?: string | null
           contact_name?: string | null
           created_at?: string
           date: string
@@ -612,6 +611,7 @@ export type Database = {
           recurrence_group?: string | null
           start_time?: string | null
           status?: string
+          template_slug?: string | null
           title: string
           trainer_id?: string | null
           type?: string
@@ -622,7 +622,6 @@ export type Database = {
           client_confirmed?: boolean
           client_confirmed_at?: string | null
           client_id?: string | null
-          color?: string | null
           contact_name?: string | null
           created_at?: string
           date?: string
@@ -638,6 +637,7 @@ export type Database = {
           recurrence_group?: string | null
           start_time?: string | null
           status?: string
+          template_slug?: string | null
           title?: string
           trainer_id?: string | null
           type?: string

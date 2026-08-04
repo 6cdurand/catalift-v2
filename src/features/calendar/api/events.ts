@@ -116,9 +116,9 @@ function patchToRow(patch: CalendarEventPatch): CalendarEventUpdate {
   if (patch.programDayIndex !== undefined) {
     row.program_day_index = patch.programDayIndex;
   }
+  if (patch.templateSlug !== undefined) row.template_slug = patch.templateSlug;
   if (patch.status !== undefined) row.status = patch.status;
   if (patch.notes !== undefined) row.notes = patch.notes;
-  if (patch.color !== undefined) row.color = patch.color;
   if (patch.clientConfirmed !== undefined) {
     row.client_confirmed = patch.clientConfirmed;
   }

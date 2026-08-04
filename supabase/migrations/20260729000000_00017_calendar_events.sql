@@ -18,6 +18,13 @@
 -- feeds session counts — which feed money — is not worth the
 -- tidiness. UUID-shaped strings are generated client-side, as v1 does.
 --
+-- `workout_id` stays `uuid` and gets a SEPARATE `template_slug text`
+-- sibling. v1's trainer-template ids are slugs ('full-body-machine',
+-- 'upper-3day', ...) and v1's booking screen puts them straight into
+-- the same field it uses for real ids. Widening `workout_id` to text to
+-- absorb both would make one column polymorphic — which is exactly v1's
+-- `client_id TEXT` mistake in a new costume. Two columns, one CHECK.
+--
 -- `owner_user_id` + `event_scope` are load-bearing, not optional:
 -- `src/lib/calendarScope.ts#getVisibleCalendarEvents` uses them to
 -- keep a trainer's personal events off client calendars and other
@@ -52,11 +59,11 @@ create table if not exists public.calendar_events (
   workout_id          uuid,
   program_id          uuid,
   program_day_index   integer,
+  template_slug       text,
   status              text not null default 'scheduled'
                         check (status in ('scheduled','completed','cancelled')),
   location            text,
   notes               text,
-  color               text,
   client_confirmed    boolean not null default false,
   client_confirmed_at timestamptz,
   recurrence_group    text,
@@ -65,7 +72,14 @@ create table if not exists public.calendar_events (
   event_scope         text not null default 'shared_session'
                         check (event_scope in ('trainer_personal','client_assigned','shared_session')),
   created_at          timestamptz not null default now(),
-  updated_at          timestamptz not null default now()
+  updated_at          timestamptz not null default now(),
+
+  -- v1's booking screen has exactly three modes: pick a client program
+  -- (program_id + program_day_index), pick a trainer template
+  -- (template_slug), or neither. Never both — a row that claims two
+  -- sources of truth for "what is this session" has no defined answer.
+  constraint calendar_events_single_source_ck
+    check (program_id is null or template_slug is null)
 );
 
 -- updated_at maintenance (v2 convention, `set_updated_at` from 00001/00005).
@@ -177,10 +191,10 @@ begin
      or new.workout_id        is distinct from old.workout_id
      or new.program_id        is distinct from old.program_id
      or new.program_day_index is distinct from old.program_day_index
+     or new.template_slug     is distinct from old.template_slug
      or new.status            is distinct from old.status
      or new.location          is distinct from old.location
      or new.notes             is distinct from old.notes
-     or new.color             is distinct from old.color
      or new.recurrence_group  is distinct from old.recurrence_group
      or new.contact_name      is distinct from old.contact_name
      or new.owner_user_id     is distinct from old.owner_user_id

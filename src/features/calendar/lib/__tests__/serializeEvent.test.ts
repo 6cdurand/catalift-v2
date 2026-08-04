@@ -25,10 +25,10 @@ function row(overrides: Partial<CalendarEventRow> = {}): CalendarEventRow {
     workout_id: null,
     program_id: null,
     program_day_index: null,
+    template_slug: null,
     status: "scheduled",
     location: null,
     notes: null,
-    color: null,
     client_confirmed: false,
     client_confirmed_at: null,
     recurrence_group: null,
@@ -56,13 +56,13 @@ describe("rowToCalendarEvent", () => {
       workoutId: undefined,
       notes: undefined,
       status: "scheduled",
-      color: undefined,
       clientConfirmed: false,
       clientConfirmedAt: undefined,
       recurrenceGroup: undefined,
       contactName: undefined,
       programId: undefined,
       programDayIndex: undefined,
+      templateSlug: undefined,
       ownerUserId: CLIENT,
       eventScope: "shared_session",
     });
@@ -76,6 +76,12 @@ describe("rowToCalendarEvent", () => {
     expect(mapped.clientId).toBeUndefined();
     expect(mapped.ownerUserId).toBeUndefined();
     expect(Object.values(mapped)).not.toContain(null);
+  });
+
+  it("reads a trainer-template slug back out", () => {
+    expect(rowToCalendarEvent(row({ template_slug: "upper-3day" })).templateSlug).toBe(
+      "upper-3day",
+    );
   });
 
   it("preserves the scope fields the visibility filter depends on", () => {
@@ -123,6 +129,30 @@ describe("calendarEventToRow", () => {
 
   it("defaults client_confirmed to false rather than NULL (column is NOT NULL)", () => {
     expect(calendarEventToRow(base).client_confirmed).toBe(false);
+  });
+
+  it("carries a trainer-template slug without touching workout_id", () => {
+    const r = calendarEventToRow({ ...base, templateSlug: "upper-3day" });
+    expect(r.template_slug).toBe("upper-3day");
+    expect(r.workout_id).toBeNull();
+    expect(r.program_id).toBeNull();
+  });
+
+  it("maps the program booking mode to program_id + program_day_index", () => {
+    const r = calendarEventToRow({
+      ...base,
+      programId: "33333333-3333-3333-3333-333333333333",
+      programDayIndex: 2,
+    });
+    expect(r.program_id).toBe("33333333-3333-3333-3333-333333333333");
+    expect(r.program_day_index).toBe(2);
+    expect(r.template_slug).toBeNull();
+  });
+
+  it("maps the empty booking mode to neither", () => {
+    const r = calendarEventToRow(base);
+    expect(r.program_id).toBeNull();
+    expect(r.template_slug).toBeNull();
   });
 
   it("round-trips through rowToCalendarEvent", () => {

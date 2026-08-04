@@ -67,9 +67,9 @@ describe("migration 00017 — calendar_events table", () => {
       "workout_id",
       "program_id",
       "program_day_index",
+      "template_slug",
       "status",
       "notes",
-      "color",
       "client_confirmed",
       "client_confirmed_at",
       "recurrence_group",
@@ -77,6 +77,22 @@ describe("migration 00017 — calendar_events table", () => {
     ]) {
       expect(sql).toContain(column);
     }
+  });
+
+  it("keeps workout_id a uuid and puts slugs in their own column", () => {
+    expect(sql).toContain("workout_id uuid");
+    expect(sql).toContain("template_slug text");
+    expect(sql).not.toContain("workout_id text");
+  });
+
+  it("lets at most one booking mode be set per row", () => {
+    expect(sql).toContain(
+      "constraint calendar_events_single_source_ck check (program_id is null or template_slug is null)",
+    );
+  });
+
+  it("has no color column — v2 derives event colour from type", () => {
+    expect(sql).not.toContain("color");
   });
 
   it("indexes the columns the calendar reads by", () => {
