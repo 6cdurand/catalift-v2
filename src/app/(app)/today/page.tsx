@@ -24,7 +24,6 @@ import { useScheduledSessions, type ScheduledSession } from "@/features/calendar
 import { useActiveClientProgram } from "@/features/programs";
 import { PreviewDayDialog } from "@/features/programs/client/dialogs/PreviewDayDialog";
 import { SwapDayDialog } from "@/features/programs/client/dialogs/SwapDayDialog";
-import { useAuthUser } from "@/hooks/use-auth-user";
 import { useViewModeStore } from "@/hooks/use-view-mode";
 import { convertProgramDayToWorkoutBlocks } from "@/lib/programStartUtils";
 import {
@@ -53,11 +52,28 @@ export default function TodayPage() {
   const router = useRouter();
   const { user, loading: sessionLoading } = useSession();
   const { role, loading: roleLoading } = useUserRole(user?.id);
-  const { user: authUser } = useAuthUser();
   const setViewMode = useViewModeStore((s) => s.setViewMode);
+  const viewOverride = useViewModeStore((s) => s.viewOverride);
 
   const isTrainerRole = role === "trainer";
-  const isTrainerMode = authUser?.mode === "trainer";
+
+  // BUG-024: `role` reports "client" while the profile row is in flight, so
+  // `!isTrainerMode` cannot distinguish "is an athlete" from "not known yet".
+  // Rendering either surface before identity resolves flashes the wrong one.
+  // The mode toggle at :220 already gates on `roleLoading` — this makes the
+  // surfaces agree.
+  const identityResolved = !sessionLoading && !roleLoading;
+
+  // BUG-024: `isTrainerMode` used to read `authUser?.mode` from `useAuthUser`,
+  // which runs its OWN separate `useUserRole` fetch (same contract, different
+  // hook instance). That fetch can resolve in a LATER render than this page's
+  // own `role`/`roleLoading`, so `identityResolved` could flip true while
+  // `isTrainerMode` was still on its stale "user" default — reopening the same
+  // flash `identityResolved` exists to close. Derive it instead from the ONE
+  // role source this page already gates rendering on, plus the existing
+  // view-mode override (semantics unchanged: override wins, otherwise follow
+  // the server-governed role).
+  const isTrainerMode = (viewOverride ?? (isTrainerRole ? "trainer" : "user")) === "trainer";
 
   // ONE selected day for the athlete surface (v1 :65-79).
   //
@@ -246,7 +262,7 @@ export default function TodayPage() {
           </div>
         )}
 
-        {showLoading && (
+        {(!identityResolved || showLoading) && (
           <p className="text-center text-gray-500">Loading your day…</p>
         )}
         {showError && (
@@ -257,7 +273,7 @@ export default function TodayPage() {
         )}
 
         {/* Trainer mode surface */}
-        {isTrainerMode && !showLoading && !showError && (
+        {identityResolved && isTrainerMode && !showLoading && !showError && (
           <TrainerTodaySurface
             trainerId={user?.id}
             clients={trainerData.clients}
@@ -267,7 +283,7 @@ export default function TodayPage() {
         )}
 
         {/* Athlete mode surface */}
-        {!isTrainerMode && !isLoading && !error && (
+        {identityResolved && !isTrainerMode && !isLoading && !error && (
           <TodaySurface
             activeProgram={effectiveProgram}
             next={effectiveNext}

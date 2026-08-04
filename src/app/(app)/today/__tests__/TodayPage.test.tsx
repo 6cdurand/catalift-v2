@@ -79,17 +79,23 @@ vi.mock("@/app/(app)/today/useTodayStats", () => ({
   useTodayStats: () => mockUseTodayStats(),
 }));
 
-vi.mock("@/hooks/use-auth-user", () => ({
-  useAuthUser: () => ({
-    user: { id: "user-1", email: "test@test.com", mode: "user" },
-    isAuthenticated: true,
-  }),
-}));
+// `viewOverride` is mutable via `setMockViewOverride` so tests can simulate
+// a trainer's local "preview as athlete" toggle without a second role fetch
+// (BUG-024 removed the page's dependency on `useAuthUser` for this).
+const { getMockViewOverride, setMockViewOverride } = vi.hoisted(() => {
+  let viewOverride: "user" | "trainer" | null = null;
+  return {
+    getMockViewOverride: () => viewOverride,
+    setMockViewOverride: (v: "user" | "trainer" | null) => {
+      viewOverride = v;
+    },
+  };
+});
 
 vi.mock("@/hooks/use-view-mode", () => ({
   useViewModeStore: vi.fn((selector) =>
     selector({
-      viewOverride: null,
+      viewOverride: getMockViewOverride(),
       setViewMode: vi.fn(),
       resetViewMode: vi.fn(),
     }),
@@ -194,6 +200,7 @@ function nextFor(program: ClientProgram): NextWorkoutResult {
 beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
+  setMockViewOverride(null);
 });
 
 afterEach(() => {
@@ -265,12 +272,6 @@ describe("TodayPage trainer mode", () => {
       useSession: () => ({ user: { id: "trainer-1" }, loading: false }),
       useUserRole: () => ({ role: "trainer", loading: false }),
     }));
-    vi.doMock("@/hooks/use-auth-user", () => ({
-      useAuthUser: () => ({
-        user: { id: "trainer-1", email: "trainer@test.com", mode: "trainer" },
-        isAuthenticated: true,
-      }),
-    }));
 
     mockUseScheduledSessions.mockReturnValue({
       sessions: [],
@@ -307,19 +308,16 @@ describe("TodayPage trainer mode", () => {
     expect(screen.queryByText("Up Next")).toBeNull();
   });
 
-  it("renders athlete surface when mode is user", async () => {
+  it("renders athlete surface when mode is user (trainer previewing as athlete)", async () => {
     vi.resetModules();
 
     vi.doMock("@/features/auth", () => ({
       useSession: () => ({ user: { id: "trainer-1" }, loading: false }),
       useUserRole: () => ({ role: "trainer", loading: false }),
     }));
-    vi.doMock("@/hooks/use-auth-user", () => ({
-      useAuthUser: () => ({
-        user: { id: "trainer-1", email: "trainer@test.com", mode: "user" },
-        isAuthenticated: true,
-      }),
-    }));
+    // The server role IS trainer — this exercises the LOCAL view-mode override
+    // (a trainer previewing the athlete surface), not the role fetch itself.
+    setMockViewOverride("user");
 
     const program = makeProgram();
 
@@ -373,12 +371,6 @@ function primeAthleteMode(sessions: ScheduledSession[] = []) {
   vi.doMock("@/features/auth", () => ({
     useSession: () => ({ user: { id: "user-1" }, loading: false }),
     useUserRole: () => ({ role: "client", loading: false }),
-  }));
-  vi.doMock("@/hooks/use-auth-user", () => ({
-    useAuthUser: () => ({
-      user: { id: "user-1", email: "test@test.com", mode: "user" },
-      isAuthenticated: true,
-    }),
   }));
 
   const program = makeProgram();
