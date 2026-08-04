@@ -565,6 +565,102 @@ export type Database = {
           },
         ]
       }
+      calendar_events: {
+        Row: {
+          client_confirmed: boolean
+          client_confirmed_at: string | null
+          client_id: string | null
+          color: string | null
+          contact_name: string | null
+          created_at: string
+          date: string
+          duration: number | null
+          end_time: string | null
+          event_scope: string
+          id: string
+          location: string | null
+          notes: string | null
+          owner_user_id: string | null
+          program_day_index: number | null
+          program_id: string | null
+          recurrence_group: string | null
+          start_time: string | null
+          status: string
+          title: string
+          trainer_id: string | null
+          type: string
+          updated_at: string
+          workout_id: string | null
+        }
+        Insert: {
+          client_confirmed?: boolean
+          client_confirmed_at?: string | null
+          client_id?: string | null
+          color?: string | null
+          contact_name?: string | null
+          created_at?: string
+          date: string
+          duration?: number | null
+          end_time?: string | null
+          event_scope?: string
+          id: string
+          location?: string | null
+          notes?: string | null
+          owner_user_id?: string | null
+          program_day_index?: number | null
+          program_id?: string | null
+          recurrence_group?: string | null
+          start_time?: string | null
+          status?: string
+          title: string
+          trainer_id?: string | null
+          type?: string
+          updated_at?: string
+          workout_id?: string | null
+        }
+        Update: {
+          client_confirmed?: boolean
+          client_confirmed_at?: string | null
+          client_id?: string | null
+          color?: string | null
+          contact_name?: string | null
+          created_at?: string
+          date?: string
+          duration?: number | null
+          end_time?: string | null
+          event_scope?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          owner_user_id?: string | null
+          program_day_index?: number | null
+          program_id?: string | null
+          recurrence_group?: string | null
+          start_time?: string | null
+          status?: string
+          title?: string
+          trainer_id?: string | null
+          type?: string
+          updated_at?: string
+          workout_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trainer_clients: {
         Row: {
           client_id: string
@@ -715,6 +811,10 @@ export type Database = {
       is_conversation_member: {
         Args: { _conv: string; _uid: string }
         Returns: boolean
+      }
+      uncomplete_calendar_event: {
+        Args: { p_event_id: string }
+        Returns: undefined
       }
       verify_invitation: {
         Args: { p_token: string }
