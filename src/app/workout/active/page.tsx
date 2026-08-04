@@ -618,7 +618,6 @@ export default function ActiveWorkoutPage() {
     timerRunning,
     tickTimer,
     restTimer,
-    startWorkout,
     addBlock,
     setActiveBlock,
     setWorkoutNotes,
@@ -654,8 +653,6 @@ export default function ActiveWorkoutPage() {
   const [showNotes, setShowNotes] = useState(false);
   // Superset creation source (v1 :1336): the straight exercise the user chose to pair.
   const [supersetSource, setSupersetSource] = useState<{ entryId: string; name: string } | null>(null);
-  const [readyToRedirect, setReadyToRedirect] = useState(false);
-  const workoutStartAttempted = useRef(false);
   const [showSummary, setShowSummary] = useState(false);
   const [summaryData, setSummaryData] = useState<SummaryData | null>(null);
   // Cached workout history (blocks) — feeds the Previous column + finish-time PB detection.
@@ -673,17 +670,17 @@ export default function ActiveWorkoutPage() {
   // Real session (BUG-014 fix)
   const { user, loading } = useSession();
 
-  // Start a workout on mount if none exists (so e2e can drive the flow)
-  useEffect(() => {
-    if (user && hasHydrated && !activeWorkout && !isFinishing && !workoutStartAttempted.current) {
-      startWorkout({ userId: user.id, name: 'Workout' });
-      workoutStartAttempted.current = true;
-      setReadyToRedirect(true);
-    } else if (user && hasHydrated && !workoutStartAttempted.current) {
-      // If we already have a workout (or are finishing), we're ready to redirect
-      setReadyToRedirect(true);
-    }
-  }, [user, hasHydrated, activeWorkout, isFinishing, startWorkout]);
+  // BUG-025: this used to auto-start an empty workout here when none existed, purely
+  // as a test affordance so e2e specs could `goto('/workout/active')` directly. That
+  // pre-empted the redirect guard below (shouldRedirectFromActiveWorkout) — a
+  // hard-refresh with no active workout landed you in a phantom session instead of
+  // bouncing to /workouts. Every real entry point now seeds the store
+  // (startWorkout / startFromTemplate) BEFORE navigating here — see
+  // workouts/page.tsx, today/page.tsx, ClientProgramPage.tsx. Do NOT restore an
+  // auto-start here; arriving with no active workout must fall through to the
+  // redirect below. Ready once auth + hydration have resolved — derived at render
+  // time (no effect needed; there's nothing external to synchronize here).
+  const readyToRedirect = !!user && hasHydrated;
 
   const redirect = shouldRedirectFromActiveWorkout({
     isAuthenticated: !!user,
@@ -695,7 +692,7 @@ export default function ActiveWorkoutPage() {
   });
 
   useEffect(() => {
-    // Only redirect after we've attempted to start a workout (avoids race where redirect fires before startWorkout)
+    // Only redirect once hydration/auth have resolved (avoids a redirect flash before hasHydrated settles)
     if (!loading && readyToRedirect) {
       if (redirect === 'auth') router.replace('/login');
       if (redirect === 'workout') router.replace('/workouts');
