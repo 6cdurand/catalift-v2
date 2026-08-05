@@ -8,6 +8,7 @@ export {
   updateCalendarEvent,
   cancelCalendarEvent,
   setClientConfirmed,
+  completeCalendarEvent,
   uncompleteCalendarEvent,
   listVisibleCalendarEvents,
   calendarEventPatchToRow,

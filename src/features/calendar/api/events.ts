@@ -181,6 +181,35 @@ export async function setClientConfirmed(
 }
 
 /**
+ * Mark a BOOKED session complete. One security-definer transaction that sets
+ * `calendar_events.status = 'completed'` AND writes the `client_sessions`
+ * ledger row (`source: 'booking'`). Never split this into two client-side
+ * writes: a partial failure either bills a session that isn't marked done, or
+ * marks one done that was never billed — completed-session counts drive
+ * outstanding payments.
+ *
+ * `client_id` and `session_date` are NOT sent — the RPC reads them off the
+ * event row it locks, so a caller cannot bill the wrong client.
+ *
+ * Idempotent: the insert rides `client_sessions_dedupe_event`, so a double-tap
+ * or a second device collapses to ONE ledger row (no `23505` dance needed
+ * here, unlike `markSessionComplete`).
+ *
+ * Program-derived sessions have no event row and must keep using
+ * `markSessionComplete` with the synthetic `program:<id>:<day>:<date>` key.
+ */
+export async function completeCalendarEvent(id: string): Promise<void> {
+  const supabase = getBrowserClient();
+
+  await withRetry(async () => {
+    const { error } = await supabase.rpc("complete_calendar_event", {
+      p_event_id: id,
+    });
+    if (error) throw error;
+  }, "completeCalendarEvent");
+}
+
+/**
  * Undo "mark complete". One security-definer transaction that sets the event
  * back to `scheduled` AND deletes the `client_sessions` row it created. Never
  * split this into two client-side writes: a partial failure inflates

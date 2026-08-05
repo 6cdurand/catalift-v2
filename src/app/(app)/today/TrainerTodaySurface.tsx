@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { Calendar, ChevronRight, Dumbbell, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { completeCalendarEvent } from "@/features/calendar";
 import { markSessionComplete } from "@/features/payments";
 import {
   useTrainerWeekSchedule,
@@ -118,14 +119,27 @@ export function TrainerTodaySurface({
     setMarkingKeys((keys) => withKey(keys, row.completedKey));
 
     try {
-      await markSessionComplete({
-        clientId: row.clientId,
-        source: "pt_completion",
-        sessionDate: selectedDate,
-        // Synthetic dedupe key — rides client_sessions_dedupe_event so a
-        // double-tap (or a second device) collapses to ONE ledger row.
-        calendarEventId: row.completedKey,
-      });
+      // Two kinds of row, two writes — and they are NOT interchangeable.
+      //
+      // A BOOKED session has a real `calendar_events` row, so completing it
+      // must also set that row's `status = 'completed'`; otherwise
+      // `deriveBookingStatus` renders it "missed" the next day (P-09).
+      // `complete_calendar_event` does both writes in one transaction —
+      // splitting them desynchronises money.
+      if (row.session.eventId) {
+        await completeCalendarEvent(row.session.eventId);
+      } else {
+        // A PROGRAM-DERIVED session has no event row, so its only dedupe
+        // handle is the synthetic key. Unchanged, and load-bearing (#98).
+        await markSessionComplete({
+          clientId: row.clientId,
+          source: "pt_completion",
+          sessionDate: selectedDate,
+          // Synthetic dedupe key — rides client_sessions_dedupe_event so a
+          // double-tap (or a second device) collapses to ONE ledger row.
+          calendarEventId: row.completedKey,
+        });
+      }
       toast.success(`Session marked complete for ${row.clientName}`);
       schedule.refresh();
     } catch {
