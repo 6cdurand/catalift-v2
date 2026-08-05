@@ -134,6 +134,24 @@ describe("mergeCalendarEventsIntoSessions", () => {
     expect(merged[0].status).toBe("done");
   });
 
+  // P-09, the reported symptom: a session the trainer completed came back the
+  // NEXT DAY as "missed". "completed" must beat "the date has passed" — and a
+  // same-day event does not exercise the `date < today` branch at all.
+  it("a PAST completed booking renders as 'done', not 'missed'", () => {
+    const pastCompleted = makeEvent({
+      date: "2026-08-01",
+      status: "completed",
+    });
+
+    const merged = mergeCalendarEventsIntoSessions({
+      sessions: [],
+      events: [pastCompleted],
+      today: TODAY,
+    });
+
+    expect(merged[0].status).toBe("done");
+  });
+
   it("a past, still-scheduled booking renders as 'missed'", () => {
     const past = makeEvent({ date: "2026-08-01", status: "scheduled" });
 

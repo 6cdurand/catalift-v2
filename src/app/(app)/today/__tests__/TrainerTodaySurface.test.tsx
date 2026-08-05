@@ -14,6 +14,7 @@ const {
   mockToastSuccess,
   mockToastError,
   mockMarkSessionComplete,
+  mockCompleteCalendarEvent,
   mockRefresh,
   mockUseTrainerWeekSchedule,
 } = vi.hoisted(() => ({
@@ -21,6 +22,7 @@ const {
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
   mockMarkSessionComplete: vi.fn(),
+  mockCompleteCalendarEvent: vi.fn(),
   mockRefresh: vi.fn(),
   mockUseTrainerWeekSchedule: vi.fn(),
 }));
@@ -35,6 +37,10 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/features/payments", () => ({
   markSessionComplete: mockMarkSessionComplete,
+}));
+
+vi.mock("@/features/calendar", () => ({
+  completeCalendarEvent: mockCompleteCalendarEvent,
 }));
 
 vi.mock("@/features/trainer-ops/hooks/useTrainerWeekSchedule", () => ({
@@ -122,6 +128,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockUseTrainerWeekSchedule.mockReturnValue(scheduleResult());
   mockMarkSessionComplete.mockResolvedValue({ id: "cs-1" });
+  mockCompleteCalendarEvent.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -268,6 +275,9 @@ describe("TrainerTodaySurface — mark complete (UI-C)", () => {
     );
     await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
     expect(mockToastSuccess).toHaveBeenCalled();
+    // The synthetic-key path must NOT reach the booking RPC — there is no
+    // `calendar_events` row for a program-derived session to complete.
+    expect(mockCompleteCalendarEvent).not.toHaveBeenCalled();
   });
 
   it("flips the row optimistically and hides the action", async () => {
@@ -315,5 +325,81 @@ describe("TrainerTodaySurface — mark complete (UI-C)", () => {
     await waitFor(() => expect(mockMarkSessionComplete).toHaveBeenCalled());
 
     expect(mockPush).not.toHaveBeenCalledWith("/workout/active");
+  });
+});
+
+// P-09. The two mark-complete paths are NOT interchangeable, and getting the
+// routing wrong is the whole bug: a booked session written only to
+// client_sessions leaves calendar_events.status = 'scheduled', which
+// deriveBookingStatus renders as "missed" the next day.
+describe("TrainerTodaySurface — mark complete routing (P-09)", () => {
+  // A booked row: real `calendar_events.id`, so completedKey IS the event id
+  // (useTrainerWeekSchedule never mints a synthetic key for these).
+  function bookedRow(): TrainerDaySession {
+    return makeRow({
+      session: {
+        date: TODAY,
+        dayIndex: -1,
+        dayRef: "PT Session",
+        label: "PT Session",
+        status: "upcoming",
+        kind: "booking",
+        startTime: "09:00",
+        eventId: "event-abc",
+      },
+      programName: "",
+      completedKey: "event-abc",
+    });
+  }
+
+  it("a session with an eventId goes through completeCalendarEvent, not the ledger insert", async () => {
+    mockUseTrainerWeekSchedule.mockReturnValue(
+      scheduleResult({ daySessions: [bookedRow()] }),
+    );
+    renderSurface();
+
+    fireEvent.click(screen.getByRole("button", { name: /Mark complete/ }));
+
+    await waitFor(() =>
+      expect(mockCompleteCalendarEvent).toHaveBeenCalledWith("event-abc"),
+    );
+    expect(mockCompleteCalendarEvent).toHaveBeenCalledTimes(1);
+    // One transaction, not two writes: the client must never insert the
+    // ledger row for a booking itself.
+    expect(mockMarkSessionComplete).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1));
+  });
+
+  it("a program-derived session still uses markSessionComplete with the synthetic key", async () => {
+    mockUseTrainerWeekSchedule.mockReturnValue(
+      scheduleResult({ daySessions: [makeRow()] }),
+    );
+    renderSurface();
+
+    fireEvent.click(screen.getByRole("button", { name: /Mark complete/ }));
+
+    await waitFor(() =>
+      expect(mockMarkSessionComplete).toHaveBeenCalledWith({
+        clientId: "client-1",
+        source: "pt_completion",
+        sessionDate: TODAY,
+        calendarEventId: `program:prog-1:0:${TODAY}`,
+      }),
+    );
+    expect(mockCompleteCalendarEvent).not.toHaveBeenCalled();
+  });
+
+  it("a failed booking completion reverts the row and toasts", async () => {
+    mockCompleteCalendarEvent.mockRejectedValue(new Error("offline"));
+    mockUseTrainerWeekSchedule.mockReturnValue(
+      scheduleResult({ daySessions: [bookedRow()] }),
+    );
+    renderSurface();
+
+    fireEvent.click(screen.getByRole("button", { name: /Mark complete/ }));
+
+    await waitFor(() => expect(mockToastError).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: /Mark complete/ })).toBeDefined();
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 });

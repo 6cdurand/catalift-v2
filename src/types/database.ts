@@ -808,6 +808,10 @@ export type Database = {
     Functions: {
       accept_invitation: { Args: { p_token: string }; Returns: string }
       are_connected: { Args: { _a: string; _b: string }; Returns: boolean }
+      complete_calendar_event: {
+        Args: { p_event_id: string }
+        Returns: undefined
+      }
       is_conversation_member: {
         Args: { _conv: string; _uid: string }
         Returns: boolean
