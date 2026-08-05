@@ -20,6 +20,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   buildScheduledSessionsResult,
   getSessionsForDate,
+  listVisibleCalendarEvents,
+  mergeCalendarEventsIntoSessions,
   type ScheduledSession,
 } from "@/features/calendar";
 import { fetchTrainerSessions } from "@/features/payments";
@@ -32,6 +34,7 @@ import {
 } from "@/features/programs";
 import { getBrowserClient } from "@/lib/supabase";
 import { toISODate } from "@/lib/week";
+import type { CalendarEvent } from "@/types";
 
 import { fetchClients } from "../api/roster";
 
@@ -117,6 +120,11 @@ export interface BuildTrainerWeekScheduleInput {
    * client's. See fetchAllCompletedDates below.
    */
   completedDatesByClient: Record<string, string[]>;
+  /**
+   * clientId → that client's `calendar_events` rows (P-08), already
+   * scope-filtered by `listVisibleCalendarEvents({ mode: "trainer" })`.
+   */
+  eventsByClient: Record<string, CalendarEvent[]>;
   /** `calendar_event_id` values already present in `client_sessions`. */
   markedKeys: Set<string>;
   rangeStart: string;
@@ -139,6 +147,7 @@ export function buildTrainerWeekSchedule(
     clients,
     programsByClient,
     completedDatesByClient,
+    eventsByClient,
     markedKeys,
     rangeStart,
     rangeEnd,
@@ -151,7 +160,10 @@ export function buildTrainerWeekSchedule(
 
   for (const client of clients) {
     const programs = programsByClient[client.id] ?? [];
-    if (programs.length === 0) continue;
+    const clientEvents = eventsByClient[client.id] ?? [];
+    // P-08: a client with a booking but no active program (template / empty
+    // mode) must still surface — do not gate on `programs.length` alone.
+    if (programs.length === 0 && clientEvents.length === 0) continue;
 
     const completedDates = completedDatesByClient[client.id] ?? [];
 
@@ -160,7 +172,6 @@ export function buildTrainerWeekSchedule(
       programs,
       selectedDate,
     );
-    if (!baseProgram && !oneOffForToday) continue;
 
     // 2. Which program day is next — the ONLY authority, never recomputed here.
     const next = baseProgram
@@ -175,7 +186,7 @@ export function buildTrainerWeekSchedule(
       : null;
 
     // 3. Which dates carry a session — the shared calendar selector.
-    const { sessions } = buildScheduledSessionsResult({
+    const { sessions: programSessions } = buildScheduledSessionsResult({
       program: baseProgram,
       next,
       completedDates,
@@ -184,6 +195,17 @@ export function buildTrainerWeekSchedule(
       today,
       oneOffProgram: oneOffForToday,
       oneOffNext,
+    });
+
+    // 4. Fold in this client's booked `calendar_events` rows — the ONE
+    // shared merge function (parity law F-04), same one useScheduledSessions
+    // calls for the athlete's own calendar. A booking that collides with a
+    // program-derived day on (programId, dayIndex, date) wins; every other
+    // booking is additive (mergeCalendarEvents.ts §4).
+    const sessions = mergeCalendarEventsIntoSessions({
+      sessions: programSessions,
+      events: clientEvents,
+      today,
     });
 
     if (sessions.length === 0) continue;
@@ -197,8 +219,14 @@ export function buildTrainerWeekSchedule(
     }
 
     for (const session of getSessionsForDate(sessions, selectedDate)) {
-      // `ScheduledSession.programId` is optional in the type, but both builders
-      // in calendar/lib/selectors.ts always set it (:127, :161), so this is
+      // A booked session carries a real `calendar_events.id` — key off THAT,
+      // never mint a synthetic dedupe key for a row that already has a real
+      // one (P-08 brief §6). `client_sessions_dedupe_event` is generic on
+      // `calendar_event_id`, so this rides the exact same unique index.
+      //
+      // `ScheduledSession.programId` is optional in the type, but both
+      // program-day builders in calendar/lib/selectors.ts always set it
+      // (:127, :161), so a programId-less, eventId-less session is
       // unreachable for kind === "program-day". Both halves are pinned by
       // __tests__/useTrainerWeekSchedule.test.ts:
       //   "every program-day session carries a programId, so the dedupe key is
@@ -208,27 +236,31 @@ export function buildTrainerWeekSchedule(
       //
       // It must stay unreachable: a literal "unknown" in the dedupe key would
       // make two DIFFERENT programs for the same client collide on the same
-      // (dayIndex, date) and silently dedupe to one ledger row. If a future
-      // session kind (booking / group-event / ad-hoc) arrives without a
-      // programId, give it its own key namespace rather than reusing this one.
-      if (!session.programId) {
+      // (dayIndex, date) and silently dedupe to one ledger row.
+      let completedKey: string;
+      if (session.eventId) {
+        completedKey = session.eventId;
+      } else if (session.programId) {
+        completedKey = buildCompletedKey(
+          session.programId,
+          session.dayIndex,
+          session.date,
+        );
+      } else {
         console.error(
           "[useTrainerWeekSchedule] session with no programId, skipping:",
           session,
         );
         continue;
       }
-      const completedKey = buildCompletedKey(
-        session.programId,
-        session.dayIndex,
-        session.date,
-      );
       daySessions.push({
         clientId: client.id,
         clientName: client.name,
         avatarUrl: client.avatarUrl,
         session,
-        programName: programNameById.get(session.programId) ?? "",
+        programName: session.programId
+          ? programNameById.get(session.programId) ?? ""
+          : "",
         completedKey,
         isMarkedComplete: markedKeys.has(completedKey),
       });
@@ -250,6 +282,7 @@ interface FetchedState {
   clients: TrainerScheduleClient[];
   programsByClient: Record<string, ClientProgram[]>;
   completedDatesByClient: Record<string, string[]>;
+  eventsByClient: Record<string, CalendarEvent[]>;
   markedKeys: Set<string>;
 }
 
@@ -257,6 +290,7 @@ const EMPTY_STATE: FetchedState = {
   clients: [],
   programsByClient: {},
   completedDatesByClient: {},
+  eventsByClient: {},
   markedKeys: new Set(),
 };
 
@@ -313,6 +347,13 @@ export function useTrainerWeekSchedule(
         ]);
         if (cancelled) return;
 
+        const eventsByClient = await fetchTrainerCalendarEvents(
+          id,
+          rangeStart,
+          rangeEnd,
+        );
+        if (cancelled) return;
+
         const marked = await fetchTrainerSessions({ rangeStart, rangeEnd });
         if (cancelled) return;
 
@@ -327,6 +368,7 @@ export function useTrainerWeekSchedule(
             clients,
             programsByClient,
             completedDatesByClient,
+            eventsByClient,
             markedKeys,
           },
           error: null,
@@ -356,6 +398,7 @@ export function useTrainerWeekSchedule(
         clients: fetched.clients,
         programsByClient: fetched.programsByClient,
         completedDatesByClient: fetched.completedDatesByClient,
+        eventsByClient: fetched.eventsByClient,
         markedKeys: fetched.markedKeys,
         rangeStart,
         rangeEnd,
@@ -423,6 +466,45 @@ async function fetchAllCompletedDates(
     performed_at: string;
   }>) {
     (byClient[row.user_id] ??= []).push(toISODate(new Date(row.performed_at)));
+  }
+
+  return byClient;
+}
+
+/**
+ * The trainer's `calendar_events` rows for the visible week, grouped by
+ * `clientId` (P-08). ONE read via `listVisibleCalendarEvents({ mode:
+ * "trainer" })` — never a direct `calendar_events` query, which would
+ * bypass its layer-2 filtering (events.ts:209-215).
+ *
+ * Events with no `clientId` (a trainer's own personal booking, out of scope
+ * for this per-client day list) are dropped here, not upstream.
+ *
+ * BEST-EFFORT (same contract as fetchAllCompletedDates): a calendar_events
+ * read failure must not blank the program-derived schedule that already
+ * loaded successfully.
+ */
+async function fetchTrainerCalendarEvents(
+  trainerId: string,
+  rangeStart: string,
+  rangeEnd: string,
+): Promise<Record<string, CalendarEvent[]>> {
+  const byClient: Record<string, CalendarEvent[]> = {};
+
+  try {
+    const events = await listVisibleCalendarEvents({
+      userId: trainerId,
+      mode: "trainer",
+      rangeStart,
+      rangeEnd,
+    });
+
+    for (const event of events) {
+      if (!event.clientId) continue;
+      (byClient[event.clientId] ??= []).push(event);
+    }
+  } catch (err) {
+    console.error("[useTrainerWeekSchedule] calendar_events read failed:", err);
   }
 
   return byClient;

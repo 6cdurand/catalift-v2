@@ -18,4 +18,10 @@ export interface ScheduledSession {
   status: ScheduledSessionStatus;
   kind: ScheduledSessionKind; // w1 produces 'program-day' only; others reserved for w3/w5
   sessionType?: "pt" | "personal";
+  // P-08: only ever set for kind: "booking" (a real `calendar_events` row has
+  // a human-chosen time; a program-derived day does not, and must never
+  // invent one — see calendar/lib/mergeCalendarEvents.ts).
+  startTime?: string; // "HH:MM" (24h, device-local)
+  endTime?: string; // "HH:MM" (24h, device-local)
+  eventId?: string; // the source calendar_events.id — lets consumers key off the real row instead of minting a synthetic dedupe key
 }

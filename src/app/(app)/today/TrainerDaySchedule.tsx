@@ -6,16 +6,19 @@
 // section header + count badge, scroll container, per-row Card with a left
 // colour accent bar, avatar → client-name button, and a completed state.
 //
-// PHASE 1: rows are PROGRAM-DERIVED and therefore UNTIMED — v1's times came
-// from `calendar_events`, which v2 deliberately dropped. The sub-line shows the
-// program-day label + program name instead. Times and a Book button arrive with
-// the booking lane (Phase 2).
+// PHASE 2 (P-08): rows can now be either PROGRAM-DERIVED (untimed — no
+// `calendar_events` row backs them, so no time is invented) or BOOKED
+// (`kind: "booking"`, from a real `calendar_events` row — carries a real
+// `startTime` and renders with it). The two are visually distinguishable:
+// program-derived keeps the sky accent bar; booked gets a rose accent bar
+// plus a clock + time in the sub-line.
 //
 // Presentational only: data arrives via props, actions go out via callbacks.
 
 import {
   CalendarRange,
   CheckCircle2,
+  Clock,
   Dumbbell,
   Users,
 } from "lucide-react";
@@ -161,6 +164,7 @@ function SessionRow({
 }: SessionRowProps) {
   const { clientName, avatarUrl, session, programName, isMarkedComplete } = row;
   const status = STATUS_BADGE[session.status];
+  const isBooking = session.kind === "booking";
   const subLine = programName
     ? `${session.label} · ${programName}`
     : session.label;
@@ -171,10 +175,15 @@ function SessionRow({
         isMarkedComplete ? "border-green-200" : "border-gray-200"
       }`}
       data-testid="trainer-session-row"
+      data-session-kind={session.kind}
     >
       <div className="flex">
-        {/* Left colour accent bar (v1 parity). */}
-        <div className="w-1 bg-sky-500 shrink-0" aria-hidden="true" />
+        {/* Left colour accent bar — rose for a booked session (a real
+            calendar_events row), sky for program-derived (v1 parity). */}
+        <div
+          className={`w-1 shrink-0 ${isBooking ? "bg-rose-500" : "bg-sky-500"}`}
+          aria-hidden="true"
+        />
         <div className="flex-1 min-w-0">
           <CardContent className="p-3">
             <div className="flex items-center justify-between gap-3">
@@ -194,8 +203,16 @@ function SessionRow({
                     {clientName}
                   </button>
                   <p className="text-xs text-gray-500 flex items-center gap-1 truncate">
-                    <Dumbbell className="w-3 h-3 shrink-0" />
-                    <span className="truncate">{subLine}</span>
+                    {isBooking && session.startTime ? (
+                      <Clock className="w-3 h-3 shrink-0 text-rose-500" />
+                    ) : (
+                      <Dumbbell className="w-3 h-3 shrink-0" />
+                    )}
+                    <span className="truncate">
+                      {isBooking && session.startTime
+                        ? `${session.startTime} · ${subLine}`
+                        : subLine}
+                    </span>
                   </p>
                 </div>
               </div>

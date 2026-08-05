@@ -41,6 +41,11 @@ export {
 } from "./lib/selectors";
 
 export {
+  mergeCalendarEventsIntoSessions,
+  type MergeCalendarEventsArgs,
+} from "./lib/mergeCalendarEvents";
+
+export {
   useScheduledSessions,
   buildScheduledSessionsResult,
   deriveCompletedDayIndices,

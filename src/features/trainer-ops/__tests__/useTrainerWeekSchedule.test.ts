@@ -14,19 +14,25 @@ vi.mock("@/features/programs", async (importOriginal) => {
 vi.mock("@/features/payments", () => ({ fetchTrainerSessions: vi.fn() }));
 // Real implementation by default — only the programId-skip test overrides it,
 // because no real program can produce a session without a programId.
+// `listVisibleCalendarEvents` defaults to [] so specs that don't care about
+// P-08 bookings don't have to mock it (and don't spam the real Supabase
+// client through the `workouts`-shaped `from` mock below).
 vi.mock("@/features/calendar", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/features/calendar")>();
   return {
     ...actual,
     buildScheduledSessionsResult: vi.fn(actual.buildScheduledSessionsResult),
+    listVisibleCalendarEvents: vi.fn().mockResolvedValue([]),
   };
 });
 
 import {
   buildScheduledSessionsResult,
   getSessionsForDate,
+  listVisibleCalendarEvents,
   type ScheduledSession,
 } from "@/features/calendar";
+import type { CalendarEvent } from "@/types";
 import { fetchTrainerSessions } from "@/features/payments";
 import {
   deriveCompletedDayIndices,
@@ -84,6 +90,7 @@ function build(overrides: Partial<Parameters<typeof buildTrainerWeekSchedule>[0]
     clients: [CLIENT_A],
     programsByClient: { "client-1": [makeProgram()] },
     completedDatesByClient: {},
+    eventsByClient: {},
     markedKeys: new Set<string>(),
     rangeStart: RANGE_START,
     rangeEnd: RANGE_END,
@@ -472,6 +479,83 @@ describe("useTrainerWeekSchedule", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(result.current.daySessions[0].isMarkedComplete).toBe(true);
+  });
+
+  // ─── P-08: booked calendar_events rows ──────────────────────────────────
+
+  it("P-08: calls listVisibleCalendarEvents with mode: 'trainer' and the visible range", async () => {
+    const { result } = renderHook(() => useTrainerWeekSchedule(args));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(listVisibleCalendarEvents).toHaveBeenCalledWith({
+      userId: "trainer-1",
+      mode: "trainer",
+      rangeStart: RANGE_START,
+      rangeEnd: RANGE_END,
+    });
+  });
+
+  it("P-08: a booked calendar_events row renders with its time and the real event id as the dedupe key — additive alongside the program-derived row", async () => {
+    const bookedEvent: CalendarEvent = {
+      id: "evt-99",
+      title: "PT Session with Anna",
+      type: "session",
+      date: TUESDAY,
+      startTime: "17:00",
+      endTime: "18:00",
+      clientId: "client-1",
+      trainerId: "trainer-1",
+      status: "scheduled",
+    };
+    vi.mocked(listVisibleCalendarEvents).mockResolvedValueOnce([bookedEvent]);
+
+    const { result } = renderHook(() => useTrainerWeekSchedule(args));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.daySessions).toHaveLength(2);
+    const booking = result.current.daySessions.find(
+      (s) => s.session.kind === "booking",
+    );
+    expect(booking).toBeDefined();
+    expect(booking!.session.startTime).toBe("17:00");
+    expect(booking!.completedKey).toBe("evt-99");
+  });
+
+  it("P-08 THE TRAP: a booking colliding with (programId, dayIndex, date) suppresses its program-derived twin — exactly one row, the booked one", async () => {
+    const bookedEvent: CalendarEvent = {
+      id: "evt-100",
+      title: "PT Session with Anna",
+      type: "session",
+      date: TUESDAY,
+      startTime: "09:00",
+      clientId: "client-1",
+      trainerId: "trainer-1",
+      programId: "prog-1",
+      programDayIndex: 0,
+      status: "scheduled",
+    };
+    vi.mocked(listVisibleCalendarEvents).mockResolvedValueOnce([bookedEvent]);
+
+    const { result } = renderHook(() => useTrainerWeekSchedule(args));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.daySessions).toHaveLength(1);
+    expect(result.current.daySessions[0].session.kind).toBe("booking");
+    expect(result.current.daySessions[0].completedKey).toBe("evt-100");
+  });
+
+  it("P-08: keeps the schedule when the calendar_events read fails (best-effort)", async () => {
+    vi.mocked(listVisibleCalendarEvents).mockRejectedValueOnce(
+      new Error("calendar_events down"),
+    );
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { result } = renderHook(() => useTrainerWeekSchedule(args));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.daySessions).toHaveLength(1);
+    errorSpy.mockRestore();
   });
 
   it("reads workouts for the whole roster with NO date filter (full history)", async () => {

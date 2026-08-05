@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
 
 import { DayView } from "../DayView";
 import type { ScheduledSession } from "../../types";
@@ -55,5 +55,27 @@ describe("DayView", () => {
     render(<DayView sessions={sessions} date="2024-01-10" onSlotClick={onSlotClick} />);
     fireEvent.click(screen.getByLabelText("2024-01-10 14:00"));
     expect(onSlotClick).toHaveBeenCalledWith("2024-01-10", 14);
+  });
+
+  // P-08: booked (kind: "booking") sessions position in their hour row.
+  it("positions a booked session in the hour row matching its startTime", () => {
+    const booking: ScheduledSession = {
+      date: "2024-01-10",
+      dayIndex: -1,
+      dayRef: "PT Session",
+      label: "PT Session",
+      status: "upcoming",
+      kind: "booking",
+      startTime: "14:00",
+      eventId: "evt-1",
+    };
+    render(<DayView sessions={[...sessions, booking]} date="2024-01-10" />);
+    const twoPmSlot = screen.getByLabelText("2024-01-10 14:00");
+    expect(within(twoPmSlot).getByText(/PT Session/)).not.toBeNull();
+  });
+
+  it("does not position an untimed program-derived session anywhere in the hour grid", () => {
+    const { container } = render(<DayView sessions={sessions} date="2024-01-10" />);
+    expect(container.querySelectorAll("[data-booking-chip]").length).toBe(0);
   });
 });

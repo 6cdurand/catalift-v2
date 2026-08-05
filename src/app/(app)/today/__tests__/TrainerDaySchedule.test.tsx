@@ -169,4 +169,53 @@ describe("TrainerDaySchedule", () => {
     renderSchedule({ sessions: [], error: new Error("boom") });
     expect(screen.getByText(/boom/)).toBeDefined();
   });
+
+  // P-08: booked sessions render with their time and are visually
+  // distinguishable from a program-derived row.
+  describe("booked sessions (P-08)", () => {
+    function makeBookingRow(
+      overrides: Partial<TrainerDaySession> = {},
+    ): TrainerDaySession {
+      return makeRow({
+        session: {
+          date: TUESDAY,
+          programId: undefined,
+          dayIndex: -1,
+          dayRef: "PT Session with Anna",
+          label: "PT Session with Anna",
+          status: "upcoming",
+          kind: "booking",
+          startTime: "17:00",
+          endTime: "18:00",
+          eventId: "evt-1",
+        },
+        programName: "",
+        completedKey: "evt-1",
+        ...overrides,
+      });
+    }
+
+    it("renders the booked session's time in the sub-line", () => {
+      renderSchedule({ sessions: [makeBookingRow()] });
+      expect(screen.getByText("17:00 · PT Session with Anna")).toBeDefined();
+    });
+
+    it("uses a rose accent bar for a booked session, not the sky program-derived bar", () => {
+      const { container } = renderSchedule({ sessions: [makeBookingRow()] });
+      expect(container.querySelector(".w-1.bg-rose-500")).not.toBeNull();
+      expect(container.querySelector(".w-1.bg-sky-500")).toBeNull();
+    });
+
+    it("marks complete using the real calendar_events id, not a synthetic key", () => {
+      renderSchedule({ sessions: [makeBookingRow()] });
+      fireEvent.click(screen.getByRole("button", { name: /Mark complete/ }));
+      expect(onMarkComplete.mock.calls[0][0].completedKey).toBe("evt-1");
+    });
+
+    it("a program-derived row still shows no time and the sky accent bar", () => {
+      const { container } = renderSchedule();
+      expect(screen.queryByText(/\d{2}:\d{2}/)).toBeNull();
+      expect(container.querySelector(".w-1.bg-sky-500")).not.toBeNull();
+    });
+  });
 });
