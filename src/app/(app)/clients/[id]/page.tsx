@@ -13,6 +13,7 @@ import {
   Calendar,
   MessageCircle,
   ClipboardList,
+  CalendarPlus,
 } from "lucide-react";
 import { useSession, useUserRole } from "@/features/auth";
 import { fetchClientProgramsForTrainer, type ClientProgram } from "@/features/programs";
@@ -352,11 +353,20 @@ export default function ClientDetailPage() {
         {/* Payments Section */}
         <ClientPaymentsSection clientId={client.id} />
 
+        {/* Book a session */}
+        <Button
+          className="w-full bg-rose-500 hover:bg-rose-600"
+          onClick={() => router.push(`/clients/${client.id}/book`)}
+        >
+          <CalendarPlus className="w-4 h-4 mr-2" />
+          Book Session
+        </Button>
+
         {/* Deferred sections notice */}
         <Card className="bg-gray-50 border-gray-200">
           <CardContent className="p-4">
             <p className="text-xs text-gray-400 text-center">
-              Booking, group management, and onboarding editing are coming soon.
+              Group management and onboarding editing are coming soon.
             </p>
           </CardContent>
         </Card>

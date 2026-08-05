@@ -8,8 +8,10 @@
 // NOT mapped, deliberately:
 //   • `color` — no such column. v2 derives event colour from `type` in the
 //     week/day views (#105); the domain field is a v1 leftover.
-//   • `location` — the column exists (v1 parity) but the domain type has no
-//     field for it. Nothing writes it yet; A1/A2 can add it as a pair.
+//
+// `location` (v1 parity) is mapped both ways below — added as a pair by the
+// booking screen (P-02): domain field, row<->domain mappers, and the
+// `patchToRow` case in `events.ts`.
 
 import type { Database } from "@/types/database";
 import type { CalendarEvent } from "@/types";
@@ -81,6 +83,7 @@ export function rowToCalendarEvent(r: CalendarEventRow): CalendarEvent {
     programId: orUndefined(r.program_id),
     programDayIndex: orUndefined(r.program_day_index),
     templateSlug: orUndefined(r.template_slug),
+    location: orUndefined(r.location),
     ownerUserId: orUndefined(r.owner_user_id),
     eventScope: orUndefined(r.event_scope) as
       | CalendarEventScope
@@ -113,6 +116,7 @@ export function calendarEventToRow(event: CalendarEvent): CalendarEventInsert {
     program_id: orNull(event.programId),
     program_day_index: orNull(event.programDayIndex),
     template_slug: orNull(event.templateSlug),
+    location: orNull(event.location),
     status: event.status,
     notes: orNull(event.notes),
     client_confirmed: event.clientConfirmed ?? false,

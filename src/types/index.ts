@@ -649,6 +649,7 @@ export interface CalendarEvent {
   programId?: string; // Links to a ClientProgram — distinguishes program workouts from PT sessions
   programDayIndex?: number; // Which day in the program this workout corresponds to
   templateSlug?: string; // Trainer-template booking mode. Slug ('upper-3day'), NOT a uuid — kept out of workoutId so that column never goes polymorphic. Mutually exclusive with programId (DB CHECK).
+  location?: string; // Free-text session location (v1 parity)
   ownerUserId?: string; // Who sees this in their personal calendar
   eventScope?: 'trainer_personal' | 'client_assigned' | 'shared_session';
 }

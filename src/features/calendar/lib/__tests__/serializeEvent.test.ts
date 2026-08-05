@@ -84,6 +84,12 @@ describe("rowToCalendarEvent", () => {
     );
   });
 
+  it("reads a location back out", () => {
+    expect(
+      rowToCalendarEvent(row({ location: "Catalift Hamilton" })).location,
+    ).toBe("Catalift Hamilton");
+  });
+
   it("preserves the scope fields the visibility filter depends on", () => {
     const mapped = rowToCalendarEvent(
       row({ event_scope: "trainer_personal", owner_user_id: TRAINER }),
@@ -172,6 +178,24 @@ describe("calendarEventToRow", () => {
     expect(readBack.clientId).toBe(CLIENT);
     expect(readBack.trainerId).toBe(TRAINER);
     expect(readBack.eventScope).toBe("client_assigned");
+  });
+
+  it("location survives a calendarEventToRow -> rowToCalendarEvent round trip", () => {
+    const written = calendarEventToRow({ ...base, location: "Catalift Hamilton" });
+    expect(written.location).toBe("Catalift Hamilton");
+
+    const readBack = rowToCalendarEvent(
+      row({
+        ...written,
+        created_at: "2026-08-01T00:00:00Z",
+        updated_at: "2026-08-01T00:00:00Z",
+      } as CalendarEventRow),
+    );
+    expect(readBack.location).toBe("Catalift Hamilton");
+  });
+
+  it("NULLs location when not set", () => {
+    expect(calendarEventToRow(base).location).toBeNull();
   });
 });
 
