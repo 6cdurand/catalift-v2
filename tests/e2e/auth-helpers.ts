@@ -136,6 +136,18 @@ export async function mockAuthSession(page: Page): Promise<void> {
     await route.continue();
   });
 
+  // Mock the calendar_events table (P-08: every schedule surface now reads
+  // it via listVisibleCalendarEvents). Empty by default; specs that book a
+  // session register their own more specific route AFTER calling
+  // mockAuthSession(), which Playwright resolves last-registered-wins.
+  await page.route(`${SUPABASE_URL}/rest/v1/calendar_events*`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    });
+  });
+
   // Inject fake session cookie
   await page.context().addCookies([
     {

@@ -5,11 +5,11 @@
 //
 // v1's grid places each event in its hour row via `event.startTime`.
 // `ScheduledSession` (this feature's canonical shape, selectors.ts) carries no
-// time-of-day — it's a derived program day, not a timestamped event — so every
-// hour slot here is "empty" by construction. Sessions surface as status chips
-// on the day header instead (same chip language as month's DayCell), and the
-// hour grid exists to host `onSlotClick`, which A1 wires to the Add Event
-// dialog once real (timestamped) calendar_events exist.
+// time-of-day for a program-derived day — it's a derived day, not a
+// timestamped event — so those hour slots stay empty. P-08 (booking lane)
+// finishes what this file's header used to describe as a permanent gap:
+// `kind: "booking"` sessions DO carry `startTime`, and are now positioned in
+// their hour row exactly the way v1 positioned real calendar events.
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,21 @@ export interface WeekViewProps {
 }
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** Booked sessions on `date` whose `startTime` hour matches `hour`. */
+function getBookingsAt(
+  sessions: ScheduledSession[],
+  date: string,
+  hour: number,
+): ScheduledSession[] {
+  return sessions.filter(
+    (s) =>
+      s.kind === "booking" &&
+      s.date === date &&
+      s.startTime &&
+      parseInt(s.startTime.slice(0, 2), 10) === hour,
+  );
+}
 
 const STATUS_CHIP: Record<ScheduledSessionStatus, string> = {
   done: "bg-emerald-500",
@@ -97,15 +112,28 @@ function WeekViewBase({
               {formatHourLabel(hour)}
             </div>
             <div className="grid flex-1 grid-cols-7">
-              {weekDates.map((date) => (
-                <button
-                  type="button"
-                  key={`${date}-${hour}`}
-                  aria-label={`${date} ${formatHourLabel(hour)}`}
-                  onClick={() => onSlotClick?.(date, hour)}
-                  className="h-10 border-r border-gray-50 hover:bg-slate-50"
-                />
-              ))}
+              {weekDates.map((date) => {
+                const bookings = getBookingsAt(sessions, date, hour);
+                return (
+                  <button
+                    type="button"
+                    key={`${date}-${hour}`}
+                    aria-label={`${date} ${formatHourLabel(hour)}`}
+                    onClick={() => onSlotClick?.(date, hour)}
+                    className="relative h-10 border-r border-gray-50 hover:bg-slate-50"
+                  >
+                    {bookings.map((b) => (
+                      <span
+                        key={b.eventId ?? `${b.date}-${b.startTime}-${b.label}`}
+                        data-booking-chip
+                        className="absolute inset-x-0.5 top-0.5 truncate rounded bg-rose-500 px-1 text-[9px] font-medium text-white"
+                      >
+                        {b.startTime} {b.label}
+                      </span>
+                    ))}
+                  </button>
+                );
+              })}
             </div>
           </div>
         ))}

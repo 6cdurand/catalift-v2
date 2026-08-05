@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
 
 import { WeekView } from "../WeekView";
 import { getWeekDates } from "../calendarDate";
@@ -72,5 +72,41 @@ describe("WeekView", () => {
     );
     fireEvent.click(screen.getByLabelText("2024-01-09 09:00"));
     expect(onSlotClick).toHaveBeenCalledWith("2024-01-09", 9);
+  });
+
+  // P-08: booked (kind: "booking") sessions position in their hour row.
+  it("positions a booked session in the hour row matching its startTime", () => {
+    const booking: ScheduledSession = {
+      date: "2024-01-09",
+      dayIndex: -1,
+      dayRef: "PT Session",
+      label: "PT Session",
+      status: "upcoming",
+      kind: "booking",
+      startTime: "09:00",
+      eventId: "evt-1",
+    };
+    const { container } = render(
+      <WeekView
+        sessions={[...sessions, booking]}
+        today={today}
+        weekDates={weekDates}
+        selectedDate={null}
+      />,
+    );
+    const nineAmSlot = screen.getByLabelText("2024-01-09 09:00");
+    expect(within(nineAmSlot).getByText(/PT Session/)).not.toBeNull();
+    // A different hour on the same day stays empty.
+    const tenAmSlot = container.querySelector(
+      '[aria-label="2024-01-09 10:00"]',
+    );
+    expect(tenAmSlot?.querySelector("[data-booking-chip]")).toBeNull();
+  });
+
+  it("does not position an untimed program-derived session anywhere in the hour grid", () => {
+    const { container } = render(
+      <WeekView sessions={sessions} today={today} weekDates={weekDates} selectedDate={null} />,
+    );
+    expect(container.querySelectorAll("[data-booking-chip]").length).toBe(0);
   });
 });

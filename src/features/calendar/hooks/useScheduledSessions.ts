@@ -10,7 +10,7 @@
 
 import { useEffect, useState } from "react";
 import { getBrowserClient } from "@/lib/supabase";
-import { useSession } from "@/features/auth";
+import { useSession, useUserRole } from "@/features/auth";
 import {
   deriveCompletedDayIndices,
   getNextProgramWorkout,
@@ -20,7 +20,9 @@ import {
   type NextWorkoutResult,
 } from "@/features/programs";
 
+import { listVisibleCalendarEvents } from "../api/events";
 import { buildScheduledSessions, getSessionsForDate } from "../lib/selectors";
+import { mergeCalendarEventsIntoSessions } from "../lib/mergeCalendarEvents";
 import type { ScheduledSession, ScheduledSessionStatus } from "../types";
 
 // Re-exported for back-compat: the implementation now lives in the programs
@@ -117,6 +119,10 @@ export function useScheduledSessions(
   const [today] = useState(() => toISODate(new Date()));
 
   const { user } = useSession();
+  // Determines the `listVisibleCalendarEvents` mode below. Getting this
+  // backwards (trainer read as "user") would silently show the wrong
+  // person's calendar_events rows — see events.ts:200-239's own warning.
+  const { role, loading: roleLoading } = useUserRole(user?.id);
 
   // Read active programs from the store (no cross-feature mutation).
   const clientPrograms = useProgramsStore((s) => s.clientPrograms);
@@ -140,15 +146,6 @@ export function useScheduledSessions(
     let cancelled = false;
 
     async function load() {
-      if (!activeProgram && !oneOffForToday) {
-        setState({
-          sessions: [],
-          todaySessions: [],
-          isLoading: false,
-          error: null,
-        });
-        return;
-      }
       if (!user) {
         setState({
           sessions: [],
@@ -158,20 +155,29 @@ export function useScheduledSessions(
         });
         return;
       }
+      // Wait for the role to resolve before reading calendar_events — getting
+      // "trainer" vs "user" backwards silently shows the wrong calendar.
+      if (roleLoading) return;
 
       try {
         const supabase = getBrowserClient();
-        const { data, error } = await supabase
-          .from("workouts")
-          .select("performed_at")
-          .eq("user_id", user.id)
-          .order("performed_at", { ascending: true });
 
-        if (error) throw error;
+        // No program → no workouts to correlate. Booked sessions (below) do
+        // not depend on this at all, so this is skipped rather than gated.
+        let completedDates: string[] = [];
+        if (activeProgram || oneOffForToday) {
+          const { data, error } = await supabase
+            .from("workouts")
+            .select("performed_at")
+            .eq("user_id", user.id)
+            .order("performed_at", { ascending: true });
 
-        const completedDates = (data ?? []).map(
-          (r: { performed_at: string }) => toISODate(new Date(r.performed_at)),
-        );
+          if (error) throw error;
+
+          completedDates = (data ?? []).map(
+            (r: { performed_at: string }) => toISODate(new Date(r.performed_at)),
+          );
+        }
 
         const program = baseProgram ?? oneOffForToday;
         const completedDayIndices = program
@@ -197,10 +203,41 @@ export function useScheduledSessions(
           oneOffNext,
         });
 
+        // P-08: fold in booked `calendar_events` rows via the ONE shared merge
+        // function (also used by useTrainerWeekSchedule) — never a second
+        // "what's on my calendar" implementation. `mode` MUST match this
+        // surface's role or layer-2 filtering (getVisibleCalendarEvents)
+        // leaks the wrong person's schedule.
+        //
+        // Best-effort: a calendar_events read failure must not blank the
+        // program-derived schedule that already loaded successfully — same
+        // contract as fetchAllCompletedDates in useTrainerWeekSchedule.
+        let events: Awaited<ReturnType<typeof listVisibleCalendarEvents>> = [];
+        try {
+          events = await listVisibleCalendarEvents({
+            userId: user.id,
+            mode: role === "trainer" ? "trainer" : "user",
+            rangeStart,
+            rangeEnd,
+          });
+        } catch (eventsErr) {
+          console.error(
+            "[useScheduledSessions] calendar_events read failed:",
+            eventsErr,
+          );
+        }
+
+        const sessions = mergeCalendarEventsIntoSessions({
+          sessions: result.sessions,
+          events,
+          today,
+        });
+        const todaySessions = getSessionsForDate(sessions, today);
+
         if (!cancelled) {
           setState({
-            sessions: result.sessions,
-            todaySessions: result.todaySessions,
+            sessions,
+            todaySessions,
             isLoading: false,
             error: null,
           });
@@ -221,7 +258,17 @@ export function useScheduledSessions(
     return () => {
       cancelled = true;
     };
-  }, [activeProgram, baseProgram, oneOffForToday, user, rangeStart, rangeEnd, today]);
+  }, [
+    activeProgram,
+    baseProgram,
+    oneOffForToday,
+    user,
+    rangeStart,
+    rangeEnd,
+    today,
+    role,
+    roleLoading,
+  ]);
 
   return {
     sessions: state.sessions,
