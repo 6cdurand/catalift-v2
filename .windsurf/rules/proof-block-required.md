@@ -1,5 +1,5 @@
 ---
-always_on: true
+trigger: always_on
 description: Every PR must include a filled proof block with terminal output evidence
 ---
 

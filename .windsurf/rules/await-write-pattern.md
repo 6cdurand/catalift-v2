@@ -1,11 +1,22 @@
 ---
-glob: "src/features/data-sync/**"
+trigger: always_on
 description: All Supabase writes must be awaited with retry — no fire-and-forget patterns
 ---
 
 # Await + Retry Write Pattern
 
 Every Supabase write (insert, update, upsert, delete) must be `await`ed with try/catch and retry logic.
+
+## Scope: ALL Supabase writes anywhere under `src/`
+
+This rule applies to **every** Supabase write in the codebase, no matter which file or folder it
+lives in — features, hooks, stores, components, route handlers, server actions, `lib/`, scripts.
+
+It is **not** limited to `src/features/data-sync/`. That narrow scoping is precisely why v1's
+fire-and-forget personal-best writes were never caught: the write sites lived outside the sync
+folder, so the rule never applied to them. Write sites are spread across the whole tree. If you are
+calling `supabase.from(...).insert/update/upsert/delete(...)` — or any RPC that mutates — this rule
+applies, full stop.
 
 ## Why
 

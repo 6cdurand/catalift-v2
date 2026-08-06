@@ -5,11 +5,18 @@ description: Ports proven v1 code into v2 structure — identifies the v1 file, 
 
 # Port v1 Code
 
-When asked to port a v1 feature to v2, follow this procedure:
+When asked to port a v1 feature to v2, follow this procedure.
+
+> **Hard prerequisite:** v1 lives at `/Users/christofit7/Desktop/catalift/catalift-web/apex-fitness` and
+> is **READ-ONLY**. Never edit it, and never run Supabase writes/migrations against v1's project
+> `pjkqfoeahcpvugolmxew` (live production). See `.windsurf/rules/00-session-bootstrap.md`.
 
 ## Steps
 
-1. **Identify the v1 source file(s).** The Issue will list the v1 file paths. Read them to understand what the code does.
+1. **OPEN and READ the v1 source file(s) with `read_file`.** The Issue should list the v1 paths; if it
+   doesn't, find them with `code_search`/`grep_search` scoped to the `apex-fitness` root. Porting from
+   a description, a summary, or memory is **not allowed** — you must have read the actual v1 file in
+   this session before writing v2 code.
 
 2. **Understand v1 lessons.** Check the Issue context section for v1-specific problems with this code. Common v1 issues:
    - Fire-and-forget writes (must convert to await + retry)
@@ -40,7 +47,16 @@ When asked to port a v1 feature to v2, follow this procedure:
    - `npm run lint` — zero errors (including import boundary check)
    - `npx playwright test` — all pass (if UI-facing)
 
-6. **Create PR with proof block.** Note in the PR description: "Ported from v1 `<file path>`. Changes: <list of adaptations made>."
+6. **Create PR with proof block, including the side-by-side port proof:**
+
+```
+### Port proof (v1 → v2)
+- **v1 source:** @/Users/christofit7/Desktop/catalift/catalift-web/apex-fitness/<path>:<start>-<end>
+- **v2 destination:** @/Users/christofit7/Desktop/catalift/catalift-v2/<path>:<start>-<end>
+- **Read the v1 file?** Y (required — N is not an acceptable answer)
+- **Deviations from v1:** [none / list each with reason]
+- **v1 lessons applied:** [which ARCHITECTURE.md rules this port had to satisfy]
+```
 
 ## What NOT to port
 

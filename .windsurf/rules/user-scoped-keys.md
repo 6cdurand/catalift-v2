@@ -1,5 +1,5 @@
 ---
-glob: "src/**"
+trigger: always_on
 description: All localStorage and cache keys must use userScopedKey() to prevent cross-account data leakage
 ---
 

@@ -2,9 +2,18 @@
 
 > This file is loaded automatically by Windsurf/Cascade when working in this repo.
 
+> **START HERE:** read `.windsurf/rules/00-session-bootstrap.md` first — workspace boundaries, v1
+> read-only porting protocol, and which stray rules do not apply to you.
+
 ## Your role
 
-You are an executor Cascade working inside the Catalift v2 repo. You implement features, fix bugs, write tests, and create PRs. You do NOT make architecture decisions — those come from the command-center (a separate workspace that authors the vision, plans, and task specs).
+You are an executor Cascade working inside the Catalift v2 repo. You implement features, fix bugs, write tests, and create PRs — you **do** write application code. You do NOT make architecture decisions — those come from the command-center (a separate workspace that authors the vision, plans, and task specs).
+
+## Workspace roots
+
+- `catalift-v2` → **WRITE**. Supabase `igagmdkdzjkxrwnyvgqk`.
+- `catalift-web/apex-fitness` → **READ-ONLY** reference to port from. Supabase `pjkqfoeahcpvugolmxew`
+  is v1 live production — never touch it. Ignore `apex-fitness/.windsurf/rules/catalift-executor.md`.
 
 ## Critical rules
 
