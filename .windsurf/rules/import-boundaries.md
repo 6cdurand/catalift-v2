@@ -1,5 +1,5 @@
 ---
-always_on: true
+trigger: always_on
 description: Enforces import boundary rules — no cross-feature imports in src/features/
 ---
 

@@ -1,5 +1,5 @@
 ---
-glob: "supabase/migrations/**"
+trigger: always_on
 description: Enforces strict RLS on every table — no USING(true), no public read access
 ---
 
