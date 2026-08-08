@@ -2,6 +2,9 @@
 // client file (/clients/[id]). Covers: derived summary, outstanding warning,
 // history empty + populated states, Log Payment write, and reload persistence.
 //
+// P-06-L1 put the client file behind five tabs, so these specs deep-link with
+// `?tab=payments` instead of landing on a single scroll. Same assertions.
+//
 // Set SHOT_DIR=/some/dir to also capture PR screenshots of each state.
 
 import { test, expect, type Page, type Route } from '@playwright/test';
@@ -89,6 +92,11 @@ async function mockClientFile(
   );
 
   await page.route(`${SUPABASE_URL}/rest/v1/workouts*`, (route) =>
+    json(route, []),
+  );
+
+  // P-06-L1: the client file now reads PB count for the header profile card.
+  await page.route(`${SUPABASE_URL}/rest/v1/personal_bests*`, (route) =>
     json(route, []),
   );
 
@@ -209,7 +217,7 @@ test.describe('Client file — Payments section', () => {
       ],
     });
 
-    await page.goto(`http://localhost:3000/clients/${CLIENT_ID}`);
+    await page.goto(`http://localhost:3000/clients/${CLIENT_ID}?tab=payments`);
 
     // 5 offset + 3 rows = 8 completed; 2 offset + 4 included = 6 paid.
     await expect(page.getByTestId('stat-completed')).toHaveText('8');
@@ -239,7 +247,7 @@ test.describe('Client file — Payments section', () => {
       payments: [],
     });
 
-    await page.goto(`http://localhost:3000/clients/${CLIENT_ID}`);
+    await page.goto(`http://localhost:3000/clients/${CLIENT_ID}?tab=payments`);
 
     await expect(page.getByTestId('stat-completed')).toHaveText('0');
     await expect(page.getByTestId('stat-paid')).toHaveText('0');
@@ -262,7 +270,7 @@ test.describe('Client file — Payments section', () => {
       payments: [],
     });
 
-    await page.goto(`http://localhost:3000/clients/${CLIENT_ID}`);
+    await page.goto(`http://localhost:3000/clients/${CLIENT_ID}?tab=payments`);
     await expect(page.getByTestId('stat-completed')).toHaveText('2');
     await expect(page.getByTestId('stat-paid')).toHaveText('0');
 
@@ -303,7 +311,7 @@ test.describe('Client file — Payments section', () => {
       payments: [],
     });
 
-    await page.goto(`http://localhost:3000/clients/${CLIENT_ID}`);
+    await page.goto(`http://localhost:3000/clients/${CLIENT_ID}?tab=payments`);
     await expect(page.getByTestId('stat-outstanding')).toHaveText('$100.00');
 
     await page.getByLabel(/per-session rate/i).fill('80');

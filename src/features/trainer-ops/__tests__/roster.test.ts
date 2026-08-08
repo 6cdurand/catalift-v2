@@ -258,7 +258,7 @@ describe('fetchClients', () => {
             id: 'tc-1',
             client_id: 'client-1',
             status: 'active',
-            client: { id: 'client-1', full_name: 'John Doe', email: 'john@example.com', avatar_url: null },
+            client: { id: 'client-1', full_name: 'John Doe', email: 'john@example.com', avatar_url: null, username: 'johnd' },
           },
           {
             id: 'tc-2',
@@ -270,7 +270,7 @@ describe('fetchClients', () => {
             id: 'tc-3',
             client_id: 'client-3',
             status: 'archived',
-            client: { id: 'client-3', full_name: null, email: 'c3@example.com', avatar_url: null },
+            client: { id: 'client-3', full_name: null, email: 'c3@example.com', avatar_url: null, username: null },
           },
         ],
         error: null,
@@ -297,6 +297,8 @@ describe('fetchClients', () => {
         email: 'john@example.com',
         status: 'active',
         avatarUrl: null,
+        // Mapped straight through from users.username (header @handle, row 3).
+        username: 'johnd',
         sessions: 2,
         lastSeen: '2026-02-01T00:00:00Z',
       },
@@ -306,6 +308,9 @@ describe('fetchClients', () => {
         email: 'jane@example.com',
         status: 'pending',
         avatarUrl: 'a.png',
+        // Row carries no `username` key at all → null, never `undefined`, so the
+        // header renders nothing rather than a bare "@".
+        username: null,
         sessions: 1,
         lastSeen: '2026-03-15T00:00:00Z',
       },
@@ -315,6 +320,7 @@ describe('fetchClients', () => {
         email: 'c3@example.com',
         status: 'archived',
         avatarUrl: null,
+        username: null,
         sessions: 0,
         lastSeen: null,
       },

@@ -60,6 +60,11 @@ async function mockBookingScreen(page: Page) {
     json(route, []),
   );
 
+  // P-06-L1: the client file reads PB count for the header profile card.
+  await page.route(`${SUPABASE_URL}/rest/v1/personal_bests*`, (route) =>
+    json(route, []),
+  );
+
   // No active program — the booking screen falls back to the Template mode.
   await page.route(`${SUPABASE_URL}/rest/v1/client_programs*`, (route) =>
     json(route, []),
@@ -92,7 +97,7 @@ test.describe('Book a client (P-02)', () => {
     await page.goto(`http://localhost:3000/clients/${CLIENT_ID}`);
     await expect(page.getByRole('heading', { name: 'John Doe' })).toBeVisible();
 
-    await page.getByRole('button', { name: /book session/i }).click();
+    await page.getByTestId('quick-action-book').click();
     await expect(page).toHaveURL(new RegExp(`/clients/${CLIENT_ID}/book$`));
 
     // Pick a time slot and duration, leave the rest at defaults (pt_session /
@@ -122,7 +127,7 @@ test.describe('Book a client (P-02)', () => {
     await mockBookingScreen(page);
 
     await page.goto(`http://localhost:3000/clients/${CLIENT_ID}`);
-    await page.getByRole('button', { name: /book session/i }).click();
+    await page.getByTestId('quick-action-book').click();
     await expect(page).toHaveURL(new RegExp(`/clients/${CLIENT_ID}/book$`));
 
     await page.getByRole('button', { name: /send booking request/i }).click();

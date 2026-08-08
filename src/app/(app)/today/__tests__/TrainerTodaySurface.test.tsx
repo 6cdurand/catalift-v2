@@ -70,6 +70,7 @@ const mockClients: RosterClientDetail[] = [
     name: "Anna Jones",
     email: "anna@example.com",
     status: "active",
+    username: null,
     avatarUrl: null,
     sessions: 10,
     lastSeen: "2026-07-15T00:00:00Z",

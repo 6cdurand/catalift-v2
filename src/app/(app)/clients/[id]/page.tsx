@@ -1,60 +1,106 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+/**
+ * /clients/[id] — the trainer client file.
+ *
+ * Port of `v1: src/app/clients/[id]/page.tsx` (3,415 lines, one
+ * component). Tracked section-by-section in `docs/ports/client-file-inventory.md`;
+ * this lane (P-06-L1) owns the shell: header identity, the five tabs, the quick
+ * action bar, Remove Client, and the Messages tab.
+ *
+ * Structure is deliberately page-shell + panels: load data, render the header,
+ * render five panels from `_components/`. v1's god-file shape is not part of the
+ * port.
+ */
+
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/layouts/MainLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import {
-  Dumbbell,
-  CheckCircle2,
-  Calendar,
-  MessageCircle,
-  ClipboardList,
-  CalendarPlus,
-} from "lucide-react";
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { MessageCircle, Trash2 } from "lucide-react";
 import { useSession, useUserRole } from "@/features/auth";
 import { fetchClientProgramsForTrainer, type ClientProgram } from "@/features/programs";
 import {
   fetchWorkoutHistory,
   type WorkoutHistoryItem,
 } from "@/features/workout-engine/api/fetch-history";
+import { fetchPersonalBests } from "@/features/workout-engine/api/fetch-personal-bests";
 import { ClientPaymentsSection } from "@/features/payments";
 import { fetchClients } from "@/lib/roster";
+import { removeClient } from "@/features/trainer-ops/api/clients";
 import type { RosterClientDetail } from "@/types/roster";
-import { LoadingState } from "@/components/states";
-import { ErrorState } from "@/components/states";
+import { LoadingState, ErrorState } from "@/components/states";
+import { useActiveWorkoutBanner } from "@/hooks/use-active-workout";
+import { ClientProfileCard } from "./_components/ClientProfileCard";
+import { ClientQuickActions } from "./_components/ClientQuickActions";
+import { ClientStatusBadges } from "./_components/ClientStatusBadges";
+import { MessagesPanel } from "./_components/MessagesPanel";
+import { OverviewPanel } from "./_components/OverviewPanel";
+import { ProgramPanel } from "./_components/ProgramPanel";
+import { ProgressPanel } from "./_components/ProgressPanel";
+import {
+  CLIENT_TABS,
+  CLIENT_TAB_LABELS,
+  DEFAULT_CLIENT_TAB,
+  resolveTab,
+  type ClientTab,
+} from "./_lib/client-tabs";
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("default", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function formatVolume(vol: number): string {
-  if (vol >= 1000) return `${(vol / 1000).toFixed(1)}k kg`;
-  return `${vol} kg`;
-}
-
+// useSearchParams requires a Suspense boundary (same wrapper as
+// src/app/workout/builder/page.tsx:103-110).
 export default function ClientDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div>
+          <PageHeader title="Client" showBack />
+          <LoadingState label="Loading client…" />
+        </div>
+      }
+    >
+      <ClientDetailContent />
+    </Suspense>
+  );
+}
+
+function ClientDetailContent() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const clientId = Array.isArray(params.id) ? params.id[0] : (params.id as string);
 
   const { user, loading: sessionLoading } = useSession();
   const { role, loading: roleLoading } = useUserRole(user?.id);
+  const activeWorkoutBanner = useActiveWorkoutBanner();
 
   const [client, setClient] = useState<RosterClientDetail | null>(null);
   const [programs, setPrograms] = useState<ClientProgram[]>([]);
   const [history, setHistory] = useState<WorkoutHistoryItem[]>([]);
+  const [pbCount, setPbCount] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // v1 seeds the tab from `?tab=` once (`:190`) and never validates it.
+  const [activeTab, setActiveTab] = useState<ClientTab>(() =>
+    resolveTab(searchParams.get("tab")),
+  );
+  const [showProfileCard, setShowProfileCard] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+
+  // Remounts ClientPaymentsSection on resume — see the resume effect below.
+  const [paymentsEpoch, setPaymentsEpoch] = useState(0);
+
   const isTrainer = role === "trainer";
+  const userId = user?.id ?? null;
 
   useEffect(() => {
     if (!sessionLoading && !roleLoading && user && !isTrainer) {
@@ -62,44 +108,109 @@ export default function ClientDetailPage() {
     }
   }, [sessionLoading, roleLoading, user, isTrainer, router]);
 
+  // Guards against a superseded fetch (clientId change / resume overlap)
+  // writing stale data over fresh data.
+  const requestRef = useRef(0);
+
+  const load = useCallback(async () => {
+    if (!userId) return;
+    const token = ++requestRef.current;
+
+    const [clientsResult, allPrograms, workoutHistory, pbs] = await Promise.all([
+      fetchClients(),
+      fetchClientProgramsForTrainer(userId),
+      // History and PBs are best-effort: a failure must not blank the page.
+      fetchWorkoutHistory(clientId, 10).catch(() => [] as WorkoutHistoryItem[]),
+      fetchPersonalBests(clientId).catch(() => null),
+    ]);
+
+    if (token !== requestRef.current) return;
+
+    const foundClient = clientsResult.clients.find((c) => c.id === clientId) ?? null;
+    if (!foundClient) {
+      setError("Client not found");
+      return;
+    }
+
+    setError(null);
+    setClient(foundClient);
+    setPrograms(allPrograms.filter((p) => p.clientId === clientId));
+    setHistory(workoutHistory);
+    setPbCount(pbs ? pbs.length : null);
+  }, [userId, clientId]);
+
   useEffect(() => {
-    if (sessionLoading || roleLoading || !user || !isTrainer) return;
+    if (sessionLoading || roleLoading || !userId || !isTrainer) return;
     let cancelled = false;
 
-    async function load() {
+    async function run() {
       try {
-        const [clientsResult, allPrograms, workoutHistory] = await Promise.all([
-          fetchClients(),
-          fetchClientProgramsForTrainer(user!.id),
-          fetchWorkoutHistory(clientId, 10).catch(() => [] as WorkoutHistoryItem[]),
-        ]);
-
-        if (cancelled) return;
-
-        const foundClient = clientsResult.clients.find((c) => c.id === clientId) ?? null;
-        if (!foundClient) {
-          setError("Client not found");
-          setIsLoading(false);
-          return;
-        }
-
-        setClient(foundClient);
-        setPrograms(allPrograms.filter((p) => p.clientId === clientId));
-        setHistory(workoutHistory);
-        setIsLoading(false);
+        await load();
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Failed to load client");
-          setIsLoading(false);
         }
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
     }
 
-    load();
+    void run();
     return () => {
       cancelled = true;
     };
-  }, [sessionLoading, roleLoading, user, isTrainer, clientId]);
+  }, [sessionLoading, roleLoading, userId, isTrainer, load]);
+
+  // G-17: the loader is keyed on clientId, so a backgrounded tab used to show
+  // stale data until it was remounted. Refetch once, at page level, so no lane
+  // has to invent its own. ClientPaymentsSection owns its data via
+  // useClientPayments — bumping its key re-runs that hook's load without
+  // reaching into a lane-L6 file.
+  useEffect(() => {
+    if (!userId || !isTrainer) return;
+
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      setPaymentsEpoch((n) => n + 1);
+      void load().catch((err) =>
+        console.error("[ClientDetailPage] refetch on resume failed:", err),
+      );
+    };
+
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [userId, isTrainer, load]);
+
+  // Keep `?tab=` honest in both directions so a copied URL reopens the tab the
+  // trainer is actually looking at. history.replaceState (rather than
+  // router.replace) keeps this a URL update, not a navigation.
+  const changeTab = useCallback((value: string) => {
+    const tab = resolveTab(value);
+    setActiveTab(tab);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (tab === DEFAULT_CLIENT_TAB) url.searchParams.delete("tab");
+    else url.searchParams.set("tab", tab);
+    window.history.replaceState(null, "", url.toString());
+  }, []);
+
+  const handleRemoveClient = useCallback(async () => {
+    try {
+      await removeClient(clientId);
+      // Toast AFTER the write resolves — v1 toasted first (G-11).
+      toast.success("Client removed from your list");
+      router.push("/clients");
+    } catch (err) {
+      console.error("[ClientDetailPage] removeClient failed:", err);
+      toast.error(
+        err instanceof Error ? err.message : "Could not remove this client",
+      );
+    }
+  }, [clientId, router]);
 
   if (sessionLoading || roleLoading) {
     return (
@@ -134,243 +245,128 @@ export default function ClientDetailPage() {
     );
   }
 
-  const activeProgram = programs.find((p) => p.status === "active");
-  const pastPrograms = programs.filter((p) => p.id !== activeProgram?.id);
-
   return (
     <div>
       <PageHeader
         title={client.name}
-        subtitle={client.status === "active" ? "Active client" : "Inactive"}
+        subtitle={client.username ? `@${client.username}` : undefined}
         showBack
-        action={
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-white/90 hover:text-white hover:bg-white/10"
-            onClick={() => router.push(`/messages?with=${client.id}`)}
+        avatar={
+          <button
+            type="button"
+            onClick={() => setShowProfileCard(true)}
+            aria-label={`View ${client.name}'s profile`}
+            data-testid="client-avatar-button"
           >
-            <MessageCircle className="w-4 h-4 mr-2" />
-            Message
-          </Button>
+            <Avatar className="w-12 h-12 cursor-pointer hover:ring-2 hover:ring-white/50 transition-all border-2 border-white/20">
+              <AvatarImage src={client.avatarUrl ?? undefined} />
+              <AvatarFallback className="bg-rose-700 text-white">
+                {client.name?.[0]?.toUpperCase() || "?"}
+              </AvatarFallback>
+            </Avatar>
+          </button>
+        }
+        action={
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-white/90 hover:text-white hover:bg-white/10"
+              onClick={() => router.push(`/messages?with=${client.id}`)}
+            >
+              <MessageCircle className="w-4 h-4 mr-2" />
+              Message
+            </Button>
+            <ClientStatusBadges status={client.status} />
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Remove client"
+              data-testid="remove-client-button"
+              className="text-white/60 hover:text-white hover:bg-white/10"
+              onClick={() => setShowRemoveConfirm(true)}
+            >
+              <Trash2 className="w-5 h-5" />
+            </Button>
+          </div>
         }
       />
 
-      <div className="px-4 py-4 pb-24 space-y-4">
-        {/* Profile Summary */}
-        <Card className="bg-white border-gray-200 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <Avatar className="w-16 h-16">
-                <AvatarImage src={client.avatarUrl ?? undefined} />
-                <AvatarFallback className="bg-rose-100 text-rose-600 text-xl font-semibold">
-                  {client.name?.[0]?.toUpperCase() || "?"}
-                </AvatarFallback>
-              </Avatar>
+      <Tabs value={activeTab} onValueChange={changeTab}>
+        <TabsList className="grid grid-cols-5 w-auto h-auto mx-4 mt-4 bg-gray-100">
+          {CLIENT_TABS.map((tab) => (
+            <TabsTrigger
+              key={tab}
+              value={tab}
+              className="text-xs data-[state=active]:bg-white"
+            >
+              {CLIENT_TAB_LABELS[tab]}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-semibold text-gray-900 truncate">
-                    {client.name}
-                  </span>
-                  <Badge
-                    className={
-                      client.status === "active"
-                        ? "bg-sky-500/10 text-sky-500"
-                        : "bg-amber-500/10 text-amber-500"
-                    }
-                  >
-                    {client.status === "active" ? "Active" : "Inactive"}
-                  </Badge>
-                </div>
+        {/* pb-48 clears the fixed quick-action bar in both of its positions. */}
+        <div className="px-4 pt-4 pb-48">
+          <TabsContent value="overview">
+            <OverviewPanel
+              email={client.email}
+              lastSeen={client.lastSeen}
+              workoutCount={client.sessions}
+              history={history}
+              onOpenWorkout={(id) => router.push(`/workout/${id}`)}
+            />
+          </TabsContent>
 
-                {client.email && (
-                  <p className="text-xs text-gray-500 truncate">{client.email}</p>
-                )}
+          <TabsContent value="program">
+            <ProgramPanel programs={programs} />
+          </TabsContent>
 
-                <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500">
-                  <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" />
-                    {client.sessions} sessions
-                  </span>
-                  {client.lastSeen && (
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      Last: {formatDate(client.lastSeen)}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          <TabsContent value="progress">
+            <ProgressPanel
+              history={history}
+              onOpenWorkout={(id) => router.push(`/workout/${id}`)}
+            />
+          </TabsContent>
 
-        {/* Programs Section */}
-        <div>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Programs
-          </h2>
+          <TabsContent value="messages">
+            <MessagesPanel me={user.id} clientId={client.id} />
+          </TabsContent>
 
-          {activeProgram ? (
-            <Card className="bg-white border-gray-200 shadow-sm">
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ClipboardList className="w-5 h-5 text-rose-500" />
-                    <span className="font-semibold text-gray-900">
-                      {activeProgram.name}
-                    </span>
-                  </div>
-                  <Badge className="bg-rose-500/10 text-rose-500 capitalize">
-                    {activeProgram.phase}
-                  </Badge>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-xs text-gray-400">Days per week</p>
-                    <p className="font-medium text-gray-900">
-                      {activeProgram.weeklyPlan.length}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400">Schedule mode</p>
-                    <p className="font-medium text-gray-900 capitalize">
-                      {activeProgram.scheduleMode}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5 pt-2 border-t border-gray-200">
-                  {activeProgram.weeklyPlan.map((day, i) => (
-                    <div
-                      key={day.id ?? i}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <span className="flex items-center gap-2 text-gray-700">
-                        <Dumbbell className="w-3.5 h-3.5 text-rose-400" />
-                        {day.label}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {day.blocks?.reduce(
-                          (sum, b) => sum + (b.exercises?.length ?? 0),
-                          0,
-                        ) || 0}{" "}
-                        exercises
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="bg-white border-gray-200 shadow-sm">
-              <CardContent className="py-8 text-center">
-                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
-                  <ClipboardList className="w-6 h-6 text-gray-400" />
-                </div>
-                <p className="text-sm text-gray-500">No active program</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  Assign a program from the Builder
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {pastPrograms.length > 0 && (
-            <div className="mt-3 space-y-1.5">
-              <p className="text-xs text-gray-500 mb-2">Past Programs</p>
-              {pastPrograms.map((prog) => (
-                <div
-                  key={prog.id}
-                  className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-2"
-                >
-                  <div>
-                    <p className="text-sm text-gray-700">{prog.name}</p>
-                    <p className="text-[10px] text-gray-500 capitalize">
-                      {prog.status} • {prog.weeklyPlan?.length ?? 0} days/week
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <TabsContent value="payments">
+            <ClientPaymentsSection
+              key={`payments-${paymentsEpoch}`}
+              clientId={client.id}
+            />
+          </TabsContent>
         </div>
+      </Tabs>
 
-        {/* Recent Workouts Section */}
-        <div>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Recent Workouts
-          </h2>
+      <ClientQuickActions
+        hasActiveWorkoutBanner={!!activeWorkoutBanner}
+        onMessage={() => changeTab("messages")}
+        onBook={() => router.push(`/clients/${client.id}/book`)}
+      />
 
-          {history.length === 0 ? (
-            <Card className="bg-white border-gray-200 shadow-sm">
-              <CardContent className="py-8 text-center">
-                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
-                  <Dumbbell className="w-6 h-6 text-gray-400" />
-                </div>
-                <p className="text-sm text-gray-500">No workouts recorded yet</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {history.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => router.push(`/workout/${item.id}`)}
-                  className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm cursor-pointer hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="min-w-0">
-                      <p className="font-medium text-gray-900 truncate">
-                        {item.name || "Workout"}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {formatDate(item.performedAt)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4 text-right shrink-0">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {formatVolume(item.totalVolume)}
-                        </p>
-                        <p className="text-[10px] uppercase text-gray-400">Volume</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {item.totalSets}
-                        </p>
-                        <p className="text-[10px] uppercase text-gray-400">Sets</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      <ClientProfileCard
+        open={showProfileCard}
+        onOpenChange={setShowProfileCard}
+        name={client.name}
+        username={client.username}
+        avatarUrl={client.avatarUrl}
+        workoutCount={client.sessions}
+        pbCount={pbCount}
+      />
 
-        {/* Payments Section */}
-        <ClientPaymentsSection clientId={client.id} />
-
-        {/* Book a session */}
-        <Button
-          className="w-full bg-rose-500 hover:bg-rose-600"
-          onClick={() => router.push(`/clients/${client.id}/book`)}
-        >
-          <CalendarPlus className="w-4 h-4 mr-2" />
-          Book Session
-        </Button>
-
-        {/* Deferred sections notice */}
-        <Card className="bg-gray-50 border-gray-200">
-          <CardContent className="p-4">
-            <p className="text-xs text-gray-400 text-center">
-              Group management and onboarding editing are coming soon.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <ConfirmDialog
+        open={showRemoveConfirm}
+        onOpenChange={setShowRemoveConfirm}
+        title="Remove Client"
+        description={`Are you sure you want to remove ${client.name} from your client list? Their account will NOT be deleted — they can still log in. You will lose access to their workouts and progress, and their payment history is kept.`}
+        confirmLabel="Remove Client"
+        variant="destructive"
+        onConfirm={() => void handleRemoveClient()}
+        icon={<Trash2 className="w-5 h-5 text-red-400" />}
+      />
     </div>
   );
 }
