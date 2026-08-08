@@ -78,8 +78,11 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function PageHeader({ title, subtitle, action, showBack = false, onBack }: {
-  title: string; subtitle?: string; action?: React.ReactNode; showBack?: boolean; onBack?: () => void;
+export function PageHeader({ title, subtitle, action, avatar, showBack = false, onBack }: {
+  title: string; subtitle?: string; action?: React.ReactNode;
+  /** Optional node rendered between the back button and the title (v1's client-file avatar). */
+  avatar?: React.ReactNode;
+  showBack?: boolean; onBack?: () => void;
 }) {
   const router = useRouter();
   const { user } = useAuthUser();
@@ -98,6 +101,7 @@ export function PageHeader({ title, subtitle, action, showBack = false, onBack }
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
             </button>
           )}
+          {avatar}
           <div>
             <h1 className="text-2xl font-bold text-white tracking-tight">{title}</h1>
             {subtitle && (<p className="text-white/80 text-sm mt-1 font-medium">{subtitle}</p>)}

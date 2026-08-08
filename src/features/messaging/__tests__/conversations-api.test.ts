@@ -253,15 +253,48 @@ describe('messaging API — real path (not a logic copy)', () => {
     expect(updatedPayload).toHaveProperty('seen_at');
   });
 
-  it('MessagesPage imports the real conversation functions (not copies)', () => {
-    const pageSrc = readFileSync(
-      join(process.cwd(), 'src/app/(app)/messages/page.tsx'),
-      'utf8',
+  // Was "MessagesPage imports the real conversation functions (not copies)",
+  // asserting that /messages imported `@/features/messaging/api/conversations`
+  // directly. P-06-L1 moved the thread (bubbles + composer + realtime + seen)
+  // out of that page into ConversationThread so the trainer client file's
+  // Messages tab renders the same component instead of a second copy — which is
+  // precisely the drift this guard exists to prevent. Widened, not weakened: it
+  // now pins the real API to the thread AND proves both surfaces consume that one
+  // component rather than re-implementing the read/write calls.
+  it('both message surfaces use the real API through the shared thread (no copies)', () => {
+    const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
+
+    const barrelSrc = read('src/features/messaging/index.ts');
+    const threadSrc = read(
+      'src/features/messaging/components/ConversationThread.tsx',
     );
-    expect(pageSrc).toMatch(/from\s+['"]@\/features\/messaging\/api\/conversations['"]/);
+    const pageSrc = read('src/app/(app)/messages/page.tsx');
+    const clientPanelSrc = read(
+      'src/app/(app)/clients/[id]/_components/MessagesPanel.tsx',
+    );
+
+    // The barrel re-exports the real module — it is not a shim with its own logic.
+    expect(barrelSrc).toMatch(/from\s+['"]\.\/api\/conversations['"]/);
+
+    // The thread owns the message read/write path, against the real API.
+    expect(threadSrc).toMatch(/from\s+['"]\.\.\/api\/conversations['"]/);
+    for (const fn of ['fetchMessages', 'sendMessage', 'markConversationSeen']) {
+      expect(threadSrc).toContain(fn);
+    }
+
+    for (const src of [pageSrc, clientPanelSrc]) {
+      // Both render the ONE component…
+      expect(src).toMatch(/from\s+['"]@\/features\/messaging['"]/);
+      expect(src).toContain('ConversationThread');
+      // …and neither calls the message read/write path itself.
+      expect(src).not.toContain('fetchMessages(');
+      expect(src).not.toContain('sendMessage(');
+      expect(src).not.toContain('markConversationSeen(');
+    }
+
+    // Conversation selection still goes through the real API on both surfaces.
     expect(pageSrc).toContain('fetchConversations');
-    expect(pageSrc).toContain('fetchMessages');
-    expect(pageSrc).toContain('sendMessage');
-    expect(pageSrc).toContain('markConversationSeen');
+    expect(pageSrc).toContain('getOrCreateConversation');
+    expect(clientPanelSrc).toContain('getOrCreateConversation');
   });
 });

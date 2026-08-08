@@ -16,6 +16,7 @@ type TrainerClientRow = {
     full_name: string | null;
     email: string;
     avatar_url?: string | null;
+    username?: string | null;
   } | null;
 };
 
@@ -85,7 +86,7 @@ export async function fetchClients(): Promise<RosterResult> {
       id,
       client_id,
       status,
-      client:users!trainer_clients_client_id_fkey(id, full_name, email, avatar_url)
+      client:users!trainer_clients_client_id_fkey(id, full_name, email, avatar_url, username)
     `,
     )
     .eq("trainer_id", user.id);
@@ -128,6 +129,7 @@ export async function fetchClients(): Promise<RosterResult> {
       email: row.client?.email || "",
       status: row.status,
       avatarUrl: row.client?.avatar_url ?? null,
+      username: row.client?.username ?? null,
       sessions: s.count,
       lastSeen: s.last,
     };
